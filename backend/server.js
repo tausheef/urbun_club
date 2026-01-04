@@ -11,6 +11,8 @@ import consignorRoutes from "./routes/consignorRoutes.js";
 import consigneeRoutes from "./routes/consigneeRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 
+import path from "path";
+
 // Load env variables
 dotenv.config();
 
@@ -27,6 +29,7 @@ app.use(cors({
 }));
 app.use(morgan("dev"));
 
+const __dirname = path.resolve();
 // Base API route prefix (versioned)
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/dockets", docketRoutes);
@@ -34,6 +37,14 @@ app.use("/api/v1/consignors", consignorRoutes);
 app.use("/api/v1/consignees", consigneeRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 
+if (process.env.NODE_ENV === "production") {
+    app.use(express.static(path.join(__dirname, "../frontend/dist")));
+  
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+    });
+  }
+  
 // Root route
 app.get("/", (req, res) => {
   res.send("🚚 Logistics Management API is running...");
@@ -58,6 +69,7 @@ app.use((err, req, res, next) => {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
   console.log(
     `🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
