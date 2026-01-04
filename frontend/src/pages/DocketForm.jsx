@@ -1,0 +1,436 @@
+import React, { useState } from 'react';
+
+export default function DocketForm() {
+  const [formData, setFormData] = useState({
+    eWayBill: '',
+    partNo: '',
+    itemDesc: '',
+    invNo: '',
+    weight: '0',
+    packet: '0',
+    invDate: '17/10/2025',
+    netInvValue: '0',
+    gInvValue: '0',
+    docketNo: '',
+    bookingDate: '17/10/2025',
+    destinationCity: '',
+    location: '',
+    postalCode: '',
+    expectedDelivery: '17/10/2025',
+    customerType: 'Contractual Client',
+    bookingMode: 'ROAD',
+    origin: 'MAHIPALPUR (WH):B1002',
+    originCity: 'DELHI',
+    originLocation: 'RANGPURI LOC-1705',
+    destinationBranch: 'Select',
+    billingParty: '',
+    billingAt: '',
+    bookingType: 'To Be Billed',
+    direction: 'DIRECT',
+    deliveryMode: 'Door Delivery',
+    loadType: 'PTL',
+    gstinNo: '',
+    isTemporaryConsignor: false,
+    consignor: '',
+    consignorAddress: '',
+    consignorCity: 'DELHI',
+    consignorState: 'DELHI',
+    consignorPin: '',
+    consignorPhone: '',
+    consignorGSTIN: '',
+    isTemporaryConsignee: true,
+    consignee: '',
+    consigneeAddress: '',
+    consigneeCity: 'Select',
+    consigneeState: 'Select',
+    consigneePin: '',
+    consigneePhone: '',
+    consigneeGSTIN: '',
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleInvoiceSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const invoiceData = {
+        eWayBill: formData.eWayBill,
+        partNo: formData.partNo,
+        itemDesc: formData.itemDesc,
+        invNo: formData.invNo,
+        weight: formData.weight,
+        packet: formData.packet,
+        invDate: formData.invDate,
+        netInvValue: formData.netInvValue,
+        gInvValue: formData.gInvValue,
+      };
+
+      const response = await fetch('http://localhost:5000/api/v1/invoices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invoiceData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage('✅ Invoice created successfully!');
+      } else {
+        setMessage(`❌ Error: ${data.message || 'Failed to create invoice'}`);
+      }
+    } catch (error) {
+      setMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDocketSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const response = await fetch('http://localhost:5000/api/v1/dockets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage('✅ Docket created successfully!');
+      } else {
+        setMessage(`❌ Error: ${data.message || 'Failed to create docket'}`);
+      }
+    } catch (error) {
+      setMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-7xl mx-auto bg-white rounded p-6">
+        
+        {/* Message */}
+        {message && (
+          <div className={`mb-4 p-3 rounded ${message.includes('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {message}
+          </div>
+        )}
+
+        {/* Invoice Details Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-sm font-bold text-gray-800">Invoice Details ☑</h2>
+            <button
+              onClick={handleInvoiceSubmit}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-4 rounded text-sm disabled:bg-gray-400"
+            >
+              + {loading ? 'SAVING...' : 'ADD INVOICE'}
+            </button>
+          </div>
+          
+          <div className="border border-gray-300 p-4">
+            <div className="grid grid-cols-12 gap-3 mb-4">
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">E-WayBill</label>
+                <input type="text" name="eWayBill" value={formData.eWayBill} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Inv. No.</label>
+                <input type="text" name="invNo" value={formData.invNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Inv. Date</label>
+                <input type="text" name="invDate" value={formData.invDate} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Net Inv Value</label>
+                <input type="number" name="netInvValue" value={formData.netInvValue} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">G.Inv Value</label>
+                <input type="number" name="gInvValue" value={formData.gInvValue} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Part No.</label>
+                <input type="text" name="partNo" value={formData.partNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Item Des.</label>
+                <input type="text" name="itemDesc" value={formData.itemDesc} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Weight</label>
+                <input type="number" name="weight" value={formData.weight} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Packet</label>
+                <input type="number" name="packet" value={formData.packet} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Three Column Layout */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          
+          {/* Left Column - Docket Details */}
+          <div className="border border-gray-300 p-4">
+            <h3 className="font-bold text-sm text-gray-800 mb-3">Docket No.</h3>
+            <div className="space-y-3">
+              <div className="bg-yellow-100 border border-yellow-300 rounded px-3 py-2">
+                <input type="text" name="docketNo" value={formData.docketNo} onChange={handleInputChange} className="w-full bg-transparent text-sm border-0 p-0" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Booking Date</label>
+                <input type="text" name="bookingDate" value={formData.bookingDate} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Destination/City</label>
+                <input type="text" name="destinationCity" value={formData.destinationCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Location</label>
+                <select name="location" value={formData.location} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="">Select</option>
+                  <option value="LOC1">PUNJAB</option>
+                  <option value="LOC2">HARYANA</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Postal Code</label>
+                <input type="text" name="postalCode" value={formData.postalCode} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Expected Delivery</label>
+                <input type="text" name="expectedDelivery" value={formData.expectedDelivery} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+            </div>
+          </div>
+
+          {/* Middle Column - Booking Details */}
+          <div className="border border-gray-300 p-4">
+            <h3 className="font-bold text-sm text-gray-800 mb-3">Booking Details</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-700">Customer Type</label>
+                <select name="customerType" value={formData.customerType} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="Contractual Client">Contractual Client</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Booking Mode</label>
+                <select name="bookingMode" value={formData.bookingMode} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="ROAD">ROAD</option>
+                  <option value="AIR">AIR</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Origin</label>
+                <input type="text" name="origin" value={formData.origin} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Origin City</label>
+                <select name="originCity" value={formData.originCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="DELHI">DELHI</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Origin Location</label>
+                <input type="text" name="originLocation" value={formData.originLocation} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Destination Branch</label>
+                <select name="destinationBranch" value={formData.destinationBranch} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="Select">Select</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Billing Details */}
+          <div className="border border-gray-300 p-4">
+            <h3 className="font-bold text-sm text-gray-800 mb-3">Billing Details</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-700">Billing Party</label>
+                <input type="text" name="billingParty" value={formData.billingParty} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Billing At</label>
+                <select name="billingAt" value={formData.billingAt} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="">Select</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Booking Type</label>
+                <select name="bookingType" value={formData.bookingType} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="To Be Billed">To Be Billed</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Direction</label>
+                <select name="direction" value={formData.direction} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="DIRECT">DIRECT</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Delivery Mode</label>
+                <select name="deliveryMode" value={formData.deliveryMode} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="Door Delivery">Door Delivery</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Load Type</label>
+                <select name="loadType" value={formData.loadType} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                  <option value="PTL">PTL</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">GSTIN No.</label>
+                <input type="text" name="gstinNo" value={formData.gstinNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Consignor and Consignee - Two Column */}
+        <div className="grid grid-cols-2 gap-4">
+          
+          {/* Consignor Section */}
+          <div className="border border-gray-300 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="isTemporaryConsignor" checked={formData.isTemporaryConsignor} onChange={handleInputChange} className="w-4 h-4" />
+              <label className="font-bold text-sm text-gray-800">Is Temporary Consignor</label>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-700">Consignor</label>
+                <input type="text" name="consignor" value={formData.consignor} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Address</label>
+                <textarea name="consignorAddress" value={formData.consignorAddress} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1 h-16"></textarea>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-700">City</label>
+                  <select name="consignorCity" value={formData.consignorCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                    <option value="DELHI">DELHI</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-700">Pin</label>
+                  <input type="text" name="consignorPin" value={formData.consignorPin} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-700">State</label>
+                  <select name="consignorState" value={formData.consignorState} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                    <option value="DELHI">DELHI</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-700">Phone</label>
+                  <input type="text" name="consignorPhone" value={formData.consignorPhone} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                </div>
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-xs">
+                  <input type="checkbox" className="w-4 h-4" />
+                  <span className="font-medium text-gray-700">GSTIN No.</span>
+                </label>
+                <input type="text" name="consignorGSTIN" value={formData.consignorGSTIN} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+            </div>
+          </div>
+
+          {/* Consignee Section */}
+          <div className="border border-gray-300 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <input type="checkbox" name="isTemporaryConsignee" checked={formData.isTemporaryConsignee} onChange={handleInputChange} className="w-4 h-4" />
+              <label className="font-bold text-sm text-gray-800">Is Temporary Consignee</label>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-700">Consignee</label>
+                <input type="text" name="consignee" value={formData.consignee} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Address</label>
+                <textarea name="consigneeAddress" value={formData.consigneeAddress} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1 h-16"></textarea>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-700">City</label>
+                  <select name="consigneeCity" value={formData.consigneeCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                    <option value="Select">Select</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-700">Pin</label>
+                  <input type="text" name="consigneePin" value={formData.consigneePin} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-700">State</label>
+                  <select name="consigneeState" value={formData.consigneeState} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                    <option value="Select">Select</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-700">Phone</label>
+                  <input type="text" name="consigneePhone" value={formData.consigneePhone} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                </div>
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-xs">
+                  <input type="checkbox" className="w-4 h-4" />
+                  <span className="font-medium text-gray-700">GSTIN No.</span>
+                </label>
+                <input type="text" name="consigneeGSTIN" value={formData.consigneeGSTIN} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-4 justify-end">
+          <button
+            onClick={handleDocketSubmit}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded disabled:bg-gray-400 text-sm"
+          >
+            {loading ? 'SAVING...' : 'SAVE DOCKET'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
