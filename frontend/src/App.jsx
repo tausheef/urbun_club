@@ -7,6 +7,10 @@ import TotalBooking from './pages/TotalBooking';
 import EwayBill from './pages/EwayBill';
 import MisReports from './pages/MisReports';
 import UpdateDocket from './pages/UpdateDocket';
+import HtmlToPdf from './pages/HtmltoPdf';
+import UpdateActivity from './pages/UpdateActivity';
+import ExpiredEwayBills from './pages/ExpiredEwayBills'; // ✅ NEW
+
 // Layout wrapper component
 function LayoutWithSidebar({ children }) {
   return (
@@ -70,11 +74,37 @@ export default function App() {
         />
 
         <Route
-          path="/updatedocket"
+          path="/update-docket/:id"
           element={
             <LayoutWithSidebar>
               <UpdateDocket />
             </LayoutWithSidebar>
+          }
+        />
+
+        <Route
+          path="/update-activity/:id"
+          element={
+            <LayoutWithSidebar>
+              <UpdateActivity />
+            </LayoutWithSidebar>
+          }
+        />
+
+        {/* ✅ NEW: Expired E-way Bills page */}
+        <Route
+          path="/expired-ewaybills"
+          element={
+            <LayoutWithSidebar>
+              <ExpiredEwayBills />
+            </LayoutWithSidebar>
+          }
+        />
+
+        <Route
+          path="/html-to-pdf/:id"
+          element={
+            <HtmlToPdf />
           }
         />
 

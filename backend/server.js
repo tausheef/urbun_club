@@ -2,7 +2,9 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import morgan from "morgan";
+import passport from "passport";
 import connectDB from "./config/db.js";
+import { configurePassport } from "./config/passport.js";
 
 // Import Routes
 import invoiceRoutes from "./routes/invoiceRoutes.js";
@@ -10,6 +12,9 @@ import docketRoutes from "./routes/docketRoutes.js";
 import consignorRoutes from "./routes/consignorRoutes.js";
 import consigneeRoutes from "./routes/consigneeRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
+import activityRoutes from "./routes/activityRoutes.js";
+import ewayBillRoutes from "./routes/ewayBillRoutes.js";
+import authRoutes from "./routes/AuthRoutes.js"; // ✅ NEW: Auth routes
 
 import path from "path";
 
@@ -19,32 +24,43 @@ dotenv.config();
 // Connect Database
 connectDB();
 
+// Configure Passport (Google OAuth)
+configurePassport();
+
 const app = express();
 
 // Middlewares
 app.use(express.json());
 app.use(cors({
-  origin: 'http://localhost:5173', // React dev server
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
 app.use(morgan("dev"));
 
+// Initialize Passport
+app.use(passport.initialize());
+
 const __dirname = path.resolve();
-// Base API route prefix (versioned)
+
+// API Routes
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/dockets", docketRoutes);
 app.use("/api/v1/consignors", consignorRoutes);
 app.use("/api/v1/consignees", consigneeRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
+app.use("/api/v1/activities", activityRoutes);
+app.use("/api/v1/ewaybills", ewayBillRoutes);
+app.use("/api/v1/auth", authRoutes); // ✅ NEW: Authentication routes
 
+// Production setup
 if (process.env.NODE_ENV === "production") {
-    app.use(express.static(path.join(__dirname, "../frontend/dist")));
-  
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
-    });
-  }
-  
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+  });
+}
+
 // Root route
 app.get("/", (req, res) => {
   res.send("🚚 Logistics Management API is running...");
@@ -58,7 +74,7 @@ app.use((req, res) => {
   });
 });
 
-// Global Error Handler (optional)
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error(`💥 Server Error: ${err.message}`);
   res.status(500).json({

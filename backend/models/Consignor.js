@@ -8,7 +8,7 @@ const consignorSchema = new mongoose.Schema({
   pin: String,
   state: String,
   phone: String,
-  gstinNo: String,
+  crgstinNo: String,
 });
 
 export default mongoose.model("Consignor", consignorSchema);

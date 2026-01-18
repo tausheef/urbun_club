@@ -6,9 +6,14 @@ import {
   getAllDockets,
   updateDocketWithDetails,
   deleteDocketWithDetails,
+  getNextDocketNumber, // ✅ NEW
 } from "../controllers/docketController.js";
 
 const router = express.Router();
+
+// ✅ NEW - GET next auto-generated docket number
+// This should be BEFORE the /:docketId route to avoid conflicts
+router.get("/next-number", getNextDocketNumber);
 
 // POST - Create a new docket with all related details
 // This endpoint handles: Docket, BookingInfo, Invoice, Consignor, Consignee

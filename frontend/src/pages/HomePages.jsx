@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useDocketStore } from '../stores/docketStore';
@@ -11,11 +11,41 @@ export default function HomePage() {
   const { fetchDockets, fetchInvoices, getTotalDockets, getEWayBillCount, loading } = useDocketStore();
   const { searchResults, searchQuery, searchType, loading: searchLoading, clearSearch } = useSearchStore();
 
+  // ✅ NEW: E-way Bill expiry notification state
+  const [expiredCount, setExpiredCount] = useState(0);
+
   // Fetch dockets and invoices on component mount
   useEffect(() => {
     fetchDockets();
     fetchInvoices();
+    fetchExpiredCount(); // ✅ NEW: Fetch expired count
+    
+    // ✅ NEW: Refresh expired count every 5 minutes
+    const interval = setInterval(() => {
+      fetchExpiredCount();
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  // ✅ NEW: Fetch expired E-way Bills count
+  const fetchExpiredCount = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/v1/ewaybills/expired/count");
+      const result = await response.json();
+      
+      if (result.success) {
+        setExpiredCount(result.count);
+      }
+    } catch (error) {
+      console.error("Error fetching expired count:", error);
+    }
+  };
+
+  // ✅ NEW: Handle notification click
+  const handleExpiredClick = () => {
+    navigate("/expired-ewaybills");
+  };
 
   // Get total dockets and e-way bill count
   const totalDockets = getTotalDockets();
@@ -99,15 +129,23 @@ export default function HomePage() {
                         </thead>
                         <tbody>
                           {searchResults.slice(0, 5).map((item, idx) => (
-                            <tr key={idx} className="border-b hover:bg-gray-50">
-                              <td className="px-4 py-2 text-gray-800 font-medium">{item.docket?.docketNo || '-'}</td>
-                              <td className="px-4 py-2 text-gray-700">
-                                {item.docket?.bookingDate ? new Date(item.docket.bookingDate).toLocaleDateString('en-IN') : '-'}
+                            <tr
+                              key={idx}
+                              onClick={() => navigate(`/update-docket/${item.docket._id}`)}
+                              className="border-b hover:bg-blue-50 cursor-pointer"
+                            >
+                              <td className="px-4 py-2 font-medium text-blue-700 underline">
+                                {item.docket?.docketNo || '-'}
                               </td>
-                              <td className="px-4 py-2 text-gray-700">{item.bookingInfo?.originCity || '-'}</td>
-                              <td className="px-4 py-2 text-gray-700">{item.docket?.destinationCity || '-'}</td>
-                              <td className="px-4 py-2 text-gray-700">{item.docket?.consignor?.consignorName || '-'}</td>
-                              <td className="px-4 py-2 text-gray-700">{item.docket?.consignee?.consigneeName || '-'}</td>
+                              <td className="px-4 py-2">
+                                {item.docket?.bookingDate
+                                  ? new Date(item.docket.bookingDate).toLocaleDateString('en-IN')
+                                  : '-'}
+                              </td>
+                              <td className="px-4 py-2">{item.bookingInfo?.originCity || '-'}</td>
+                              <td className="px-4 py-2">{item.docket?.destinationCity || '-'}</td>
+                              <td className="px-4 py-2">{item.docket?.consignor?.consignorName || '-'}</td>
+                              <td className="px-4 py-2">{item.docket?.consignee?.consigneeName || '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -187,13 +225,29 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* E-Way Bill Validity Badge */}
-      <div className="fixed bottom-8 right-8">
-        <div className="bg-gray-700 text-white px-4 py-3 rounded shadow-lg text-center">
-          <div className="text-red-500 font-bold text-lg">157</div>
-          <div className="text-xs mt-1">E-Way Bill<br />Validity</div>
-        </div>
-      </div>
+      {/* ✅ UPDATED: E-Way Bill Validity Notification (Only shows if expired count > 0) */}
+      {expiredCount > 0 && (
+        <button
+          onClick={handleExpiredClick}
+          className="fixed bottom-6 right-6 z-50 bg-gray-800 hover:bg-gray-900 text-white rounded-lg shadow-2xl p-4 transition-all hover:scale-105 flex flex-col items-center gap-1 min-w-[120px]"
+          title="Click to view expired E-way Bills"
+        >
+          {/* Badge with count */}
+          <div className="relative">
+            <span className="text-4xl font-bold text-red-500">-{expiredCount}</span>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+          </div>
+          
+          {/* Label */}
+          <div className="text-center">
+            <div className="text-xs font-semibold">E-Way Bill</div>
+            <div className="text-xs">Validity</div>
+          </div>
+
+          {/* Pulse animation */}
+          <div className="absolute inset-0 rounded-lg border-2 border-red-500 animate-ping opacity-20"></div>
+        </button>
+      )}
 
       {/* Footer */}
       <div className="text-center py-8 text-gray-500 text-sm mt-12">

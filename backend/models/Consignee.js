@@ -8,7 +8,7 @@ const consigneeSchema = new mongoose.Schema({
   pin: String,
   state: String,
   phone: String,
-  gstinNo: String,
+  cegstinNo: String,
 });
 
 export default mongoose.model("Consignee", consigneeSchema);
