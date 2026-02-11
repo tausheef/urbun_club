@@ -12,9 +12,9 @@ import docketRoutes from "./routes/docketRoutes.js"; // ✅ This now includes ca
 import consignorRoutes from "./routes/consignorRoutes.js";
 import consigneeRoutes from "./routes/consigneeRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
-import activityRoutes from "./routes/ActivityRoutes.js";
-import ewayBillRoutes from "./routes/ewayBillRoutes.js";
-import authRoutes from "./routes/AuthRoutes.js";
+import activityRoutes from "./routes/ActivityRoutes.js"; // ✅ Capital A
+import ewayBillRoutes from "./routes/Ewaybillroutes.js"; // ✅ Fixed: Capital E, lowercase w-b-r
+import authRoutes from "./routes/AuthRoutes.js"; // ✅ Capital A
 import coLoaderRoutes from "./routes/coLoaderRoutes.js"; // ✅ Add co-loader routes
 
 import path from "path";
