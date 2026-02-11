@@ -133,21 +133,31 @@ export const loginUser = async (req, res) => {
  */
 export const googleAuthCallback = async (req, res) => {
   try {
+    // 🔍 DEBUG: Log the frontend URL being used
+    console.log('🔍 FRONTEND_URL:', process.env.FRONTEND_URL);
+    console.log('🔍 NODE_ENV:', process.env.NODE_ENV);
+    
     // User is attached by Passport
     const user = req.user;
 
     if (!user) {
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+      const redirectUrl = `${process.env.FRONTEND_URL}/login?error=auth_failed`;
+      console.log('🔍 Redirecting to (no user):', redirectUrl);
+      return res.redirect(redirectUrl);
     }
 
     // Generate token
     const token = generateToken(user._id);
 
     // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/auth/google/success?token=${token}`);
+    const redirectUrl = `${process.env.FRONTEND_URL}/auth/google/success?token=${token}`;
+    console.log('🔍 Redirecting to (success):', redirectUrl);
+    res.redirect(redirectUrl);
   } catch (error) {
     console.error("Google auth callback error:", error);
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+    const redirectUrl = `${process.env.FRONTEND_URL}/login?error=auth_failed`;
+    console.log('🔍 Redirecting to (error):', redirectUrl);
+    res.redirect(redirectUrl);
   }
 };
 
