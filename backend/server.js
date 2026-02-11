@@ -59,13 +59,19 @@ app.get("/", (req, res) => {
   res.send("🚚 Logistics Management API is running...");
 });
 
-// Production setup - MUST be after all API routes
+// Production setup - serve static files if needed
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../frontend/dist")));
-
-  // Catch-all route for SPA - serves index.html for any non-API routes
-  app.get("/*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+  const frontendPath = path.join(__dirname, "../frontend/dist");
+  app.use(express.static(frontendPath));
+  
+  // Only serve index.html for non-API routes using middleware
+  app.use((req, res, next) => {
+    // Skip if it's an API route or a file request
+    if (req.path.startsWith('/api/') || req.path.includes('.')) {
+      return next();
+    }
+    // Serve index.html for all other routes (SPA support)
+    res.sendFile(path.join(frontendPath, "index.html"));
   });
 }
 
