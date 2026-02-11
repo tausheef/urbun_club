@@ -10,14 +10,22 @@ export const configurePassport = () => {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL,
+        proxy: true, // ✅ CRITICAL: This tells Passport to trust the proxy (Render uses proxies)
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
+          console.log('🔐 Google OAuth Profile:', {
+            id: profile.id,
+            email: profile.emails[0].value,
+            name: profile.displayName
+          });
+
           // Check if user already exists with this Google ID
           let user = await User.findOne({ googleId: profile.id });
 
           if (user) {
             // User exists, return user
+            console.log('✅ Existing user found:', user.email);
             return done(null, user);
           }
 
@@ -26,6 +34,7 @@ export const configurePassport = () => {
 
           if (user) {
             // User exists with email, link Google account
+            console.log('🔗 Linking Google account to existing user:', user.email);
             user.googleId = profile.id;
             user.avatar = profile.photos[0]?.value;
             await user.save();
@@ -33,6 +42,7 @@ export const configurePassport = () => {
           }
 
           // Create new user
+          console.log('➕ Creating new user from Google profile');
           user = await User.create({
             name: profile.displayName,
             email: profile.emails[0].value,
@@ -41,9 +51,10 @@ export const configurePassport = () => {
             role: "user", // Google users are always regular users
           });
 
+          console.log('✅ New user created:', user.email);
           return done(null, user);
         } catch (error) {
-          console.error("Google OAuth error:", error);
+          console.error("❌ Google OAuth error:", error);
           return done(error, null);
         }
       }
