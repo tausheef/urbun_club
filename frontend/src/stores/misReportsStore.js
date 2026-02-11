@@ -1,5 +1,6 @@
 // stores/misReportsStore.js
 import { create } from 'zustand';
+import { docketAPI, activityAPI, coLoaderAPI } from '../utils/api';
 
 export const useMisReportsStore = create((set, get) => ({
   clientType: 'Consignor', // 'Consignor' or 'Consignee'
@@ -18,6 +19,104 @@ export const useMisReportsStore = create((set, get) => ({
     set({ clientName: name });
   },
 
+  // Fetch POD from Activity model
+  fetchPODForDocket: async (docketId) => {
+    if (!docketId) {
+      console.warn('No docketId provided for POD fetch');
+      return null;
+    }
+
+    try {
+      const data = await activityAPI.getByDocket(docketId);
+      
+      console.log(`POD data for docket ${docketId}:`, data);
+      
+      if (data.success && data.data && Array.isArray(data.data)) {
+        // Find latest "Delivered" activity with POD image
+        const deliveredActivities = data.data.filter(
+          activity => {
+            const hasDeliveredStatus = activity.status === 'Delivered';
+            const hasPodImage = activity.podImage?.url;
+            
+            if (hasDeliveredStatus && !hasPodImage) {
+              console.log(`Delivered activity found but no POD image:`, activity);
+            }
+            
+            return hasDeliveredStatus && hasPodImage;
+          }
+        );
+
+        if (deliveredActivities.length > 0) {
+          // Sort by date (latest first)
+          const latestDelivered = deliveredActivities.sort(
+            (a, b) => new Date(b.date) - new Date(a.date)
+          )[0];
+
+          console.log(`POD found for docket ${docketId}:`, latestDelivered.podImage.url);
+          return latestDelivered.podImage.url;
+        } else {
+          console.log(`No delivered activities with POD for docket ${docketId}`);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Error fetching POD for docket ${docketId}:`, error);
+      return null;
+    }
+  },
+
+  // Fetch latest activity status for a docket
+  fetchLatestStatusForDocket: async (docketId) => {
+    if (!docketId) {
+      console.warn('No docketId provided for status fetch');
+      return '-';
+    }
+
+    try {
+      const data = await activityAPI.getByDocket(docketId);
+      
+      if (data.success && data.data && Array.isArray(data.data) && data.data.length > 0) {
+        // Sort by date (latest first)
+        const sortedActivities = data.data.sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        );
+
+        // Return the latest status
+        return sortedActivities[0].status || '-';
+      }
+
+      return '-';
+    } catch (error) {
+      console.error(`Error fetching status for docket ${docketId}:`, error);
+      return '-';
+    }
+  },
+
+  // ✅ Fetch co-loader data for a docket
+  fetchCoLoaderForDocket: async (docketId) => {
+    if (!docketId) {
+      return null;
+    }
+
+    try {
+      const response = await coLoaderAPI.getByDocketId(docketId);
+      if (response.success && response.data) {
+        return {
+          transportName: response.data.transportName || '-',
+          transportDocket: response.data.transportDocket || '-',
+        };
+      }
+      return null;
+    } catch (error) {
+      // 404 is expected when docket has no co-loader
+      if (error.response?.status !== 404) {
+        console.error(`Error fetching co-loader for docket ${docketId}:`, error);
+      }
+      return null;
+    }
+  },
+
   // Search dockets by client
   searchByClient: async (clientType, clientName) => {
     if (!clientName.trim()) {
@@ -27,47 +126,101 @@ export const useMisReportsStore = create((set, get) => ({
 
     set({ loading: true, error: null });
     try {
-      const response = await fetch('http://localhost:5000/api/v1/dockets');
+      // Add populate parameter to get consignor/consignee details
+      const data = await docketAPI.getAll({ populate: 'consignor,consignee' });
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch dockets');
-      }
+      console.log('Dockets API response:', data);
 
-      const data = await response.json();
+      if (data.success && data.data && Array.isArray(data.data)) {
+        // Filter: Exclude cancelled dockets
+        const activeDockets = data.data.filter(
+          item => item.docket?.docketStatus !== 'Cancelled'
+        );
 
-      if (data.success && data.data) {
         // Filter based on client type
-        const filtered = data.data.filter(item => {
+        const filtered = activeDockets.filter(item => {
+          if (!item.docket) {
+            console.warn('Item missing docket data:', item);
+            return false;
+          }
+
           if (clientType === 'Consignor') {
-            return item.docket?.consignor?.consignorName?.toLowerCase().includes(clientName.toLowerCase());
+            const consignorName = item.docket?.consignor?.consignorName;
+            if (!consignorName) {
+              console.warn('Docket missing consignor data:', item.docket);
+              return false;
+            }
+            return consignorName.toLowerCase().includes(clientName.toLowerCase());
           } else if (clientType === 'Consignee') {
-            return item.docket?.consignee?.consigneeName?.toLowerCase().includes(clientName.toLowerCase());
+            const consigneeName = item.docket?.consignee?.consigneeName;
+            if (!consigneeName) {
+              console.warn('Docket missing consignee data:', item.docket);
+              return false;
+            }
+            return consigneeName.toLowerCase().includes(clientName.toLowerCase());
           }
           return false;
         });
 
-        // Transform data to match required columns
-        const transformedResults = filtered.map((item, idx) => ({
-          slno: idx + 1,
-          bookingDate: item.docket?.bookingDate ? new Date(item.docket.bookingDate).toLocaleDateString('en-IN') : '-',
-          docketNo: item.docket?.docketNo || '-',
-          consignor: item.docket?.consignor?.consignorName || '-',
-          consignee: item.docket?.consignee?.consigneeName || '-',
-          billingParty: item.bookingInfo?.billingParty || '-',
-          originCity: item.bookingInfo?.originCity || '-',
-          destinationCity: item.docket?.destinationCity || '-',
-          originBranch: item.bookingInfo?.origin || '-',
-          destinationBranch: item.bookingInfo?.destinationBranch || '-',
-          packetsActual: item.invoice?.packet || 0,
-          typeBooking: item.bookingInfo?.bookingType || '-',
-          ewayBillNo: item.invoice?.eWayBill || '-',
-          invoiceNo: item.invoice?.invoiceNo || '-',
-        }));
+        console.log(`Filtered ${filtered.length} dockets for ${clientType}: ${clientName}`);
+
+        // Transform data with POD and Co-Loader fetching
+        const transformedResults = await Promise.all(
+          filtered.map(async (item, idx) => {
+            const docketId = item.docket?._id;
+            const hasCoLoader = item.docket?.coLoader === true;
+            
+            // Fetch POD for this docket
+            const podUrl = docketId ? await get().fetchPODForDocket(docketId) : null;
+            
+            // Fetch latest status for this docket
+            const currentStatus = docketId ? await get().fetchLatestStatusForDocket(docketId) : '-';
+
+            // ✅ Fetch co-loader data if docket has co-loader
+            let coLoaderData = null;
+            if (hasCoLoader && docketId) {
+              coLoaderData = await get().fetchCoLoaderForDocket(docketId);
+            }
+
+            const result = {
+              slno: idx + 1,
+              date: item.docket?.bookingDate 
+                ? new Date(item.docket.bookingDate).toLocaleDateString('en-IN') 
+                : '-',
+              docketNo: item.docket?.docketNo || '-',
+              consignee: item.docket?.consignee?.consigneeName || '-',
+              consignor: item.docket?.consignor?.consignorName || '-',
+              from: item.bookingInfo?.originCity || '-',
+              to: item.docket?.destinationCity || '-',
+              invoiceNo: item.invoice?.invoiceNo || '-',
+              pkg: item.invoice?.packet || 0,
+              weight: item.invoice?.weight || '-',
+              mode: item.bookingInfo?.bookingMode || '-',
+              status: currentStatus,
+              deliveryDate: item.docket?.expectedDelivery 
+                ? new Date(item.docket.expectedDelivery).toLocaleDateString('en-IN') 
+                : '-',
+              pod: podUrl || null,
+              docketId: docketId,
+              // ✅ Add co-loader fields
+              hasCoLoader: hasCoLoader,
+              transportName: coLoaderData?.transportName || '-',
+              transportDocket: coLoaderData?.transportDocket || '-',
+            };
+
+            console.log(`Result ${idx + 1} - CoLoader:`, hasCoLoader ? 'Yes' : 'No');
+            return result;
+          })
+        );
 
         set({ searchResults: transformedResults, loading: false });
+      } else {
+        console.error('Unexpected API response structure:', data);
+        set({ searchResults: [], loading: false });
       }
     } catch (error) {
-      set({ error: error.message, loading: false });
+      const errorMessage = error.response?.data?.message || error.message || 'Search failed';
+      set({ error: errorMessage, loading: false });
       console.error('Search error:', error);
     }
   },

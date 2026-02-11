@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { docketAPI } from "../utils/api";
 
 export default function ViewDocket() {
   const { id } = useParams();
@@ -16,8 +17,7 @@ export default function ViewDocket() {
   useEffect(() => {
     const fetchDocket = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/v1/dockets/${id}`);
-        const result = await res.json();
+        const result = await docketAPI.getById(id);
         const { docket, bookingInfo, invoice, consignor, consignee } = result.data;
 
         setFormData({

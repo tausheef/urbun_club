@@ -7,17 +7,11 @@ const activitySchema = new mongoose.Schema(
       ref: "Docket",
       required: true,
     },
+    // ✅ UPDATED: Removed enum - now accepts ANY string
     status: {
       type: String,
       required: true,
-      enum: [
-        "Booked",
-        "In Transit",
-        "Needing Appointment for Delivery",
-        "Out for Delivery",
-        "Delivered",
-        "Undelivered",
-      ],
+      trim: true, // Remove extra spaces
     },
     location: {
       type: String,

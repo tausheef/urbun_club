@@ -1,9 +1,10 @@
 // stores/docketStore.js
 import { create } from 'zustand';
+import { docketAPI, invoiceAPI } from '../utils/api';
 
 export const useDocketStore = create((set, get) => ({
   dockets: [],
-  invoices: [], // ADD THIS - was missing
+  invoices: [],
   loading: false,
   error: null,
 
@@ -11,35 +12,29 @@ export const useDocketStore = create((set, get) => ({
   fetchDockets: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch('http://localhost:5000/api/v1/dockets');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch dockets');
-      }
-
-      const data = await response.json();
+      const data = await docketAPI.getAll();
 
       if (data.success && data.data) {
-        set({ dockets: data.data, loading: false });
+        // Filter: Only store Active dockets (exclude Cancelled)
+        const activeDockets = data.data.filter(
+          item => item.docket?.docketStatus !== 'Cancelled'
+        );
+        
+        set({ dockets: activeDockets, loading: false });
       } else {
         throw new Error('Invalid data format');
       }
     } catch (error) {
-      set({ error: error.message, loading: false });
-      console.error('Fetch error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch dockets';
+      set({ error: errorMessage, loading: false });
+      console.error('Fetch dockets error:', error);
     }
   },
 
   // Fetch all invoices from API
   fetchInvoices: async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/invoices');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch invoices');
-      }
-
-      const data = await response.json();
+      const data = await invoiceAPI.getAll();
 
       if (Array.isArray(data)) {
         set({ invoices: data });
@@ -57,7 +52,7 @@ export const useDocketStore = create((set, get) => ({
     return dockets.length;
   },
 
-  // Get delivered dockets
+  // Get delivered dockets count
   getDeliveredCount: () => {
     const { dockets } = get();
     return dockets.filter(item => 

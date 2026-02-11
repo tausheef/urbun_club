@@ -1,6 +1,6 @@
-// src/pages/GoogleAuthSuccess.jsx
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { authAPI } from '../utils/api';
 
 export default function GoogleAuthSuccess() {
   const navigate = useNavigate();
@@ -14,22 +14,16 @@ export default function GoogleAuthSuccess() {
       localStorage.setItem('token', token);
 
       // Fetch user data
-      fetchUser(token);
+      fetchUser();
     } else {
       // No token, redirect to login
       navigate('/login');
     }
   }, [searchParams, navigate]);
 
-  const fetchUser = async (token) => {
+  const fetchUser = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
+      const data = await authAPI.getMe();
 
       if (data.success) {
         // Save user data

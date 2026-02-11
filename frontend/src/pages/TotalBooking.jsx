@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import Navbar from "../components/Navbar";
 import * as XLSX from "xlsx";
+import { docketAPI } from "../utils/api";
 
 export default function TotalBooking() {
   const navigate = useNavigate();
@@ -18,6 +19,12 @@ export default function TotalBooking() {
 
   const rowsPerPage = 6;
 
+  // Everyone goes to ViewDocket (read-only)
+  const handleDocketClick = (docketId) => {
+    if (!docketId) return;
+    navigate(`/view-docket/${docketId}`);
+  };
+
   // ================= PENDING DAYS =================
   const calculatePendingDays = (expectedDate) => {
     if (!expectedDate) return "-";
@@ -32,14 +39,19 @@ export default function TotalBooking() {
     const fetchDockets = async () => {
       try {
         setLoading(true);
-        const res = await fetch("http://localhost:5000/api/v1/dockets");
-        const data = await res.json();
+        
+        const data = await docketAPI.getAll();
 
         if (!data.success || !Array.isArray(data.data)) {
           throw new Error("Invalid data format");
         }
 
-        const transformed = data.data.map((item) => {
+        // FILTER: Only show Active dockets (hide Cancelled)
+        const activeDockets = data.data.filter(
+          item => item.docket?.docketStatus !== 'Cancelled'
+        );
+
+        const transformed = activeDockets.map((item) => {
           const consignor = item.docket?.consignor;
           const consignee = item.docket?.consignee;
 
@@ -75,7 +87,8 @@ export default function TotalBooking() {
         setFilteredDockets(transformed);
         setError("");
       } catch (err) {
-        setError(err.message);
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to fetch dockets';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -138,87 +151,85 @@ export default function TotalBooking() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <div className="px-6 py-8">
-        {/* Header Section */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Header */}
         <div className="mb-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Total Bookings</h1>
-              <p className="text-gray-500 text-sm">List of all dockets in the system</p>
-            </div>
+          <h1 className="text-3xl font-bold text-gray-800">Total Booking</h1>
+          <p className="text-gray-600 mt-1">View and manage all dockets</p>
+        </div>
+
+        {/* Export & Filter Bar */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={exportToExcel}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors"
+              disabled={filteredDockets.length === 0}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               <Download size={18} />
               Export to Excel
             </button>
-          </div>
-        </div>
 
-        {/* Filter Section */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Filter by:</label>
-              <select
-                value={filterMonth}
-                onChange={(e) => setFilterMonth(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              >
-                <option value="">Month</option>
-                {Array.from({ length: 12 }, (_, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {new Date(0, i).toLocaleString("en-IN", { month: "long" })}
-                  </option>
-                ))}
-              </select>
+            <div className="h-6 w-px bg-gray-300"></div>
 
-              <select
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              >
-                <option value="">Year</option>
-                {[2023, 2024, 2025, 2026].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Month</option>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {new Date(0, m - 1).toLocaleString("en-IN", { month: "long" })}
+                </option>
+              ))}
+            </select>
 
-              <button
-                onClick={applyMonthYearFilter}
-                disabled={!filterMonth || !filterYear}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                Apply Filter
-              </button>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Year</option>
+              {[2023, 2024, 2025, 2026].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
 
-              {isFilterApplied && (
-                <button
-                  onClick={clearFilter}
-                  className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <X size={16} />
-                  Clear Filter
-                </button>
-              )}
-            </div>
+            <button
+              onClick={applyMonthYearFilter}
+              disabled={!filterMonth || !filterYear}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              Apply Filter
+            </button>
 
             {isFilterApplied && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-sm text-gray-600">
-                  Filtered by: <span className="font-semibold">{new Date(0, filterMonth - 1).toLocaleString("en-IN", { month: "long" })} {filterYear}</span>
-                </span>
-              </div>
+              <button
+                onClick={clearFilter}
+                className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                <X size={16} />
+                Clear Filter
+              </button>
             )}
           </div>
+
+          {isFilterApplied && (
+            <div className="flex items-center gap-2 ml-auto mt-2">
+              <span className="text-sm text-gray-600">
+                Filtered by: <span className="font-semibold">{new Date(0, filterMonth - 1).toLocaleString("en-IN", { month: "long" })} {filterYear}</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {loading && (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <p className="text-gray-600">Loading...</p>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-600">Loading dockets...</p>
           </div>
         )}
         
@@ -259,7 +270,7 @@ export default function TotalBooking() {
                       <tr key={i} className="hover:bg-gray-50 transition-colors">
                         <td 
                           className="px-4 py-3.5 text-sm font-medium text-blue-700 underline cursor-pointer whitespace-nowrap"
-                          onClick={() => d.id && navigate(`/update-docket/${d.id}`)}
+                          onClick={() => handleDocketClick(d.id)}
                         >
                           {d.docketNo}
                         </td>

@@ -1,6 +1,7 @@
 // src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authAPI } from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -30,13 +31,7 @@ export const AuthProvider = ({ children }) => {
   // Fetch current user from token
   const fetchCurrentUser = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
+      const data = await authAPI.getMe();
 
       if (data.success) {
         setUser(data.user);
@@ -54,15 +49,7 @@ export const AuthProvider = ({ children }) => {
   // Login function
   const login = async (credentials) => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const data = await response.json();
+      const data = await authAPI.login(credentials);
 
       if (data.success) {
         setToken(data.token);
@@ -75,22 +62,16 @@ export const AuthProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (error) {
-      return { success: false, message: error.message };
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+      return { success: false, message: errorMessage };
     }
   };
 
   // Register function
   const register = async (userData) => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      const data = await response.json();
+      const data = await authAPI.register(userData);
 
       if (data.success) {
         setToken(data.token);
@@ -103,13 +84,15 @@ export const AuthProvider = ({ children }) => {
         return { success: false, message: data.message };
       }
     } catch (error) {
-      return { success: false, message: error.message };
+      console.error('Register error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
+      return { success: false, message: errorMessage };
     }
   };
 
   // Google login handler
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:5000/api/v1/auth/google';
+    authAPI.googleLogin();
   };
 
   // Logout function

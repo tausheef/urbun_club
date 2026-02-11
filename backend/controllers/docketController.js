@@ -8,12 +8,27 @@ import DocketCounter from "../models/DocketCounter.js";
 import { createBookedActivity } from "./activityController.js";
 import { calculateDistance, calculateEwayBillValidity, calculateExpiryDate } from "../utils/Distancecalculator.js"; // ✅ NEW
 
-// Helper function to parse DD/MM/YYYY format
+// Helper function to parse DD/MM/YYYY format OR ISO date strings
 const parseDate = (dateString) => {
   if (!dateString) return null;
-  const [day, month, year] = dateString.split('/');
-  if (!day || !month || !year) return null;
-  return new Date(`${year}-${month}-${day}`);
+  
+  // Check if it's already a valid ISO date string (from frontend)
+  if (typeof dateString === 'string' && dateString.includes('T')) {
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  
+  // Handle DD/MM/YYYY format (legacy support)
+  if (typeof dateString === 'string' && dateString.includes('/')) {
+    const [day, month, year] = dateString.split('/');
+    if (!day || !month || !year) return null;
+    const date = new Date(`${year}-${month}-${day}`);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  
+  // Try parsing as a regular date string
+  const date = new Date(dateString);
+  return isNaN(date.getTime()) ? null : date;
 };
 
 // ✅ NEW: Get next auto-generated docket number
@@ -490,6 +505,366 @@ export const deleteDocketWithDetails = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || "Failed to delete docket",
+    });
+  }
+};
+
+// ✅ Toggle RTO (Return to Origin) status for a docket
+export const toggleRto = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rto } = req.body;
+
+    // ✅ Use findByIdAndUpdate to update only RTO field without triggering full validation
+    const docket = await Docket.findByIdAndUpdate(
+      id,
+      { rto: rto },
+      { new: true, runValidators: false } // new: true returns updated doc, runValidators: false skips validation
+    );
+
+    if (!docket) {
+      return res.status(404).json({
+        success: false,
+        message: "Docket not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `RTO ${rto ? 'enabled' : 'disabled'} successfully`,
+      data: {
+        docketId: docket._id,
+        docketNo: docket.docketNo,
+        rto: docket.rto,
+      },
+    });
+  } catch (error) {
+    console.error("Error toggling RTO:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to toggle RTO",
+    });
+  }
+};
+// ========================================================================
+// ✅ NEW: Status-Based Filtering Functions
+// ========================================================================
+
+/**
+ * @desc    Get all delivered dockets
+ * @route   GET /api/v1/dockets/delivered
+ * @access  Public
+ */
+export const getDeliveredDockets = async (req, res) => {
+  try {
+    // Import Activity model (ensure it's imported at the top)
+    const Activity = (await import("../models/Activity.js")).default;
+    
+    // Get all active (non-cancelled) dockets
+    const dockets = await Docket.find({ docketStatus: 'Active' })
+      .populate("consignor")
+      .populate("consignee")
+      .lean();
+
+    // Get all activities
+    const activities = await Activity.find()
+      .sort({ date: -1, time: -1 })
+      .lean();
+
+    // Group activities by docketId
+    const activitiesByDocket = {};
+    activities.forEach((activity) => {
+      const docketId = activity.docketId.toString();
+      if (!activitiesByDocket[docketId]) {
+        activitiesByDocket[docketId] = [];
+      }
+      activitiesByDocket[docketId].push(activity);
+    });
+
+    // Filter and format delivered dockets
+    const deliveredDockets = [];
+    
+    for (const docket of dockets) {
+      const docketActivities = activitiesByDocket[docket._id.toString()] || [];
+      
+      if (docketActivities.length > 0) {
+        // Get latest activity (already sorted)
+        const latestActivity = docketActivities[0];
+        const status = latestActivity.status.toLowerCase().trim();
+        
+        // Check if delivered (handles "Delivered", "(RTO) Delivered", etc.)
+        // But exclude "Undelivered"
+        if (status.includes("delivered") && !status.includes("undelivered")) {
+          deliveredDockets.push({
+            docket: {
+              _id: docket._id,
+              docketNo: docket.docketNo,
+              bookingDate: docket.bookingDate,
+              expectedDeliveryDate: docket.expectedDelivery,
+              destinationCity: docket.destinationCity,
+              consignor: docket.consignor,
+              consignee: docket.consignee,
+              rto: docket.rto,
+            },
+            bookingInfo: {
+              originCity: docket.location || docket.destinationCity,
+            },
+            activities: docketActivities,
+          });
+        }
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      count: deliveredDockets.length,
+      data: deliveredDockets,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching delivered dockets:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching delivered dockets",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Get all undelivered dockets
+ * @route   GET /api/v1/dockets/undelivered
+ * @access  Public
+ */
+export const getUndeliveredDockets = async (req, res) => {
+  try {
+    const Activity = (await import("../models/Activity.js")).default;
+    
+    const dockets = await Docket.find({ docketStatus: 'Active' })
+      .populate("consignor")
+      .populate("consignee")
+      .lean();
+
+    const activities = await Activity.find()
+      .sort({ date: -1, time: -1 })
+      .lean();
+
+    const activitiesByDocket = {};
+    activities.forEach((activity) => {
+      const docketId = activity.docketId.toString();
+      if (!activitiesByDocket[docketId]) {
+        activitiesByDocket[docketId] = [];
+      }
+      activitiesByDocket[docketId].push(activity);
+    });
+
+    const undeliveredDockets = [];
+    
+    for (const docket of dockets) {
+      const docketActivities = activitiesByDocket[docket._id.toString()] || [];
+      
+      if (docketActivities.length > 0) {
+        const latestActivity = docketActivities[0];
+        const status = latestActivity.status.toLowerCase().trim();
+        
+        // Check if status contains "undelivered"
+        if (status.includes("undelivered")) {
+          undeliveredDockets.push({
+            docket: {
+              _id: docket._id,
+              docketNo: docket.docketNo,
+              bookingDate: docket.bookingDate,
+              expectedDeliveryDate: docket.expectedDelivery,
+              destinationCity: docket.destinationCity,
+              consignor: docket.consignor,
+              consignee: docket.consignee,
+              rto: docket.rto,
+            },
+            bookingInfo: {
+              originCity: docket.location || docket.destinationCity,
+            },
+            activities: docketActivities,
+          });
+        }
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      count: undeliveredDockets.length,
+      data: undeliveredDockets,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching undelivered dockets:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching undelivered dockets",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Get all pending dockets (not delivered or undelivered)
+ * @route   GET /api/v1/dockets/pending
+ * @access  Public
+ */
+export const getPendingDockets = async (req, res) => {
+  try {
+    const Activity = (await import("../models/Activity.js")).default;
+    
+    const dockets = await Docket.find({ docketStatus: 'Active' })
+      .populate("consignor")
+      .populate("consignee")
+      .lean();
+
+    const activities = await Activity.find()
+      .sort({ date: -1, time: -1 })
+      .lean();
+
+    const activitiesByDocket = {};
+    activities.forEach((activity) => {
+      const docketId = activity.docketId.toString();
+      if (!activitiesByDocket[docketId]) {
+        activitiesByDocket[docketId] = [];
+      }
+      activitiesByDocket[docketId].push(activity);
+    });
+
+    const pendingDockets = [];
+    
+    for (const docket of dockets) {
+      const docketActivities = activitiesByDocket[docket._id.toString()] || [];
+      
+      let isPending = false;
+      
+      if (docketActivities.length === 0) {
+        // No activities = pending
+        isPending = true;
+      } else {
+        const latestActivity = docketActivities[0];
+        const status = latestActivity.status.toLowerCase().trim();
+        
+        // Pending if NOT delivered and NOT undelivered
+        const isDelivered = status.includes("delivered") && !status.includes("undelivered");
+        const isUndelivered = status.includes("undelivered");
+        
+        isPending = !isDelivered && !isUndelivered;
+      }
+      
+      if (isPending) {
+        pendingDockets.push({
+          docket: {
+            _id: docket._id,
+            docketNo: docket.docketNo,
+            bookingDate: docket.bookingDate,
+            expectedDeliveryDate: docket.expectedDelivery,
+            destinationCity: docket.destinationCity,
+            consignor: docket.consignor,
+            consignee: docket.consignee,
+            rto: docket.rto,
+          },
+          bookingInfo: {
+            originCity: docket.location || docket.destinationCity,
+          },
+          activities: docketActivities,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      count: pendingDockets.length,
+      data: pendingDockets,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching pending dockets:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching pending dockets",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Get all RTO (Return to Origin) dockets
+ * @route   GET /api/v1/dockets/rto
+ * @access  Public
+ */
+export const getRTODockets = async (req, res) => {
+  try {
+    const Activity = (await import("../models/Activity.js")).default;
+    
+    const dockets = await Docket.find({ docketStatus: 'Active' })
+      .populate("consignor")
+      .populate("consignee")
+      .lean();
+
+    const activities = await Activity.find()
+      .sort({ date: -1, time: -1 })
+      .lean();
+
+    const activitiesByDocket = {};
+    activities.forEach((activity) => {
+      const docketId = activity.docketId.toString();
+      if (!activitiesByDocket[docketId]) {
+        activitiesByDocket[docketId] = [];
+      }
+      activitiesByDocket[docketId].push(activity);
+    });
+
+    const rtoDockets = [];
+    
+    for (const docket of dockets) {
+      const docketActivities = activitiesByDocket[docket._id.toString()] || [];
+      
+      // Check if docket has RTO flag
+      const hasRTOFlag = docket.rto === true;
+      
+      // Check if any activity has RTO in status
+      let hasRTOActivity = false;
+      if (docketActivities.length > 0) {
+        // Check any activity, not just the latest
+        hasRTOActivity = docketActivities.some(activity => {
+          const status = activity.status.toLowerCase().trim();
+          return status.includes("(rto)") || 
+                 status.includes("rto") || 
+                 status.includes("return to origin") ||
+                 status.includes("return to sender");
+        });
+      }
+      
+      if (hasRTOFlag || hasRTOActivity) {
+        rtoDockets.push({
+          docket: {
+            _id: docket._id,
+            docketNo: docket.docketNo,
+            bookingDate: docket.bookingDate,
+            expectedDeliveryDate: docket.expectedDelivery,
+            destinationCity: docket.destinationCity,
+            consignor: docket.consignor,
+            consignee: docket.consignee,
+            rto: docket.rto,
+          },
+          bookingInfo: {
+            originCity: docket.location || docket.destinationCity,
+          },
+          activities: docketActivities,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      count: rtoDockets.length,
+      data: rtoDockets,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching RTO dockets:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching RTO dockets",
+      error: error.message,
     });
   }
 };

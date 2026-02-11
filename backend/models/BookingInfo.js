@@ -8,7 +8,12 @@ const bookingInfoSchema = new mongoose.Schema(
       required: true,
     },
     customerType: { type: String, enum: ["Contractual Client", "Regular"], default: "Regular" },
-    bookingMode: { type: String, default: "ROAD" },
+    // ✅ UPDATED: Added enum validation for bookingMode
+    bookingMode: { 
+      type: String, 
+      enum: ["ROAD", "AIR", "RAIL", "SEA"],
+      default: "ROAD" 
+    },
     origin: { type: String, required: true },
     originCity: { type: String },
     originLocation: { type: String },

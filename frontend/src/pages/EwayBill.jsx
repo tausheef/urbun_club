@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { invoiceAPI } from '../utils/api';
 
 export default function EwayBill() {
   const [invoices, setInvoices] = useState([]);
@@ -14,13 +15,8 @@ export default function EwayBill() {
     const fetchInvoices = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:5000/api/v1/invoices');
+        const data = await invoiceAPI.getAll();
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch invoices: ${response.status}`);
-        }
-        
-        const data = await response.json();
         console.log('Raw API Response:', data);
         
         if (Array.isArray(data)) {
@@ -49,7 +45,8 @@ export default function EwayBill() {
         setError('');
       } catch (err) {
         console.error('Fetch error:', err);
-        setError(err.message || 'Error fetching invoices');
+        const errorMessage = err.response?.data?.message || err.message || 'Error fetching invoices';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }

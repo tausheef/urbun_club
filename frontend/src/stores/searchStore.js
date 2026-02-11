@@ -1,5 +1,6 @@
 // stores/searchStore.js
 import { create } from 'zustand';
+import { docketAPI, invoiceAPI } from '../utils/api';
 
 export const useSearchStore = create((set, get) => ({
   searchType: 'DOCKET', // 'DOCKET' or 'E-WAY BILL'
@@ -27,13 +28,7 @@ export const useSearchStore = create((set, get) => ({
 
     set({ loading: true, error: null });
     try {
-      const response = await fetch('http://localhost:5000/api/v1/dockets');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch dockets');
-      }
-
-      const data = await response.json();
+      const data = await docketAPI.getAll();
 
       if (data.success && data.data) {
         // Filter dockets based on search query
@@ -57,8 +52,9 @@ export const useSearchStore = create((set, get) => ({
         set({ searchResults: filtered, loading: false });
       }
     } catch (error) {
-      set({ error: error.message, loading: false });
-      console.error('Search error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Search failed';
+      set({ error: errorMessage, loading: false });
+      console.error('Search dockets error:', error);
     }
   },
 
@@ -71,13 +67,7 @@ export const useSearchStore = create((set, get) => ({
 
     set({ loading: true, error: null });
     try {
-      const response = await fetch('http://localhost:5000/api/v1/invoices');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch invoices');
-      }
-
-      const data = await response.json();
+      const data = await invoiceAPI.getAll();
 
       if (Array.isArray(data)) {
         // Filter invoices with e-way bills based on search query
@@ -99,8 +89,9 @@ export const useSearchStore = create((set, get) => ({
         set({ searchResults: filtered, loading: false });
       }
     } catch (error) {
-      set({ error: error.message, loading: false });
-      console.error('Search error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Search failed';
+      set({ error: errorMessage, loading: false });
+      console.error('Search e-way bills error:', error);
     }
   },
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ewayBillAPI } from "../utils/api";
 
 export default function ExpiredEwayBills() {
   const [expiredBills, setExpiredBills] = useState([]);
@@ -12,8 +13,7 @@ export default function ExpiredEwayBills() {
 
   const fetchExpiredBills = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/v1/ewaybills/expired");
-      const result = await response.json();
+      const result = await ewayBillAPI.getExpired();
 
       if (result.success) {
         setExpiredBills(result.data);

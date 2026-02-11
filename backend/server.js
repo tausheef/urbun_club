@@ -8,13 +8,14 @@ import { configurePassport } from "./config/passport.js";
 
 // Import Routes
 import invoiceRoutes from "./routes/invoiceRoutes.js";
-import docketRoutes from "./routes/docketRoutes.js";
+import docketRoutes from "./routes/docketRoutes.js"; // ✅ This now includes cancellation routes
 import consignorRoutes from "./routes/consignorRoutes.js";
 import consigneeRoutes from "./routes/consigneeRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import ewayBillRoutes from "./routes/ewayBillRoutes.js";
-import authRoutes from "./routes/AuthRoutes.js"; // ✅ NEW: Auth routes
+import authRoutes from "./routes/AuthRoutes.js";
+import coLoaderRoutes from "./routes/coLoaderRoutes.js"; // ✅ Add co-loader routes
 
 import path from "path";
 
@@ -44,13 +45,14 @@ const __dirname = path.resolve();
 
 // API Routes
 app.use("/api/v1/invoices", invoiceRoutes);
-app.use("/api/v1/dockets", docketRoutes);
+app.use("/api/v1/dockets", docketRoutes); // ✅ Single mount - includes both regular and cancellation routes
 app.use("/api/v1/consignors", consignorRoutes);
 app.use("/api/v1/consignees", consigneeRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/activities", activityRoutes);
 app.use("/api/v1/ewaybills", ewayBillRoutes);
-app.use("/api/v1/auth", authRoutes); // ✅ NEW: Authentication routes
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/coloaders", coLoaderRoutes); // ✅ Mount co-loader routes
 
 // Production setup
 if (process.env.NODE_ENV === "production") {

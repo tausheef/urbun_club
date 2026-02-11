@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useDocketStore } from '../stores/docketStore';
 import { useSearchStore } from '../stores/searchStore';
+import { ewayBillAPI, activityAPI } from '../utils/api';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -11,28 +12,36 @@ export default function HomePage() {
   const { fetchDockets, fetchInvoices, getTotalDockets, getEWayBillCount, loading } = useDocketStore();
   const { searchResults, searchQuery, searchType, loading: searchLoading, clearSearch } = useSearchStore();
 
-  // ✅ NEW: E-way Bill expiry notification state
+  // E-way Bill expiry notification state
   const [expiredCount, setExpiredCount] = useState(0);
+
+  // Dynamic counts for status pages
+  const [deliveredCount, setDeliveredCount] = useState(0);
+  const [undeliveredCount, setUndeliveredCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [rtoCount, setRtoCount] = useState(0);
+  const [podCount, setPodCount] = useState(0);
 
   // Fetch dockets and invoices on component mount
   useEffect(() => {
     fetchDockets();
     fetchInvoices();
-    fetchExpiredCount(); // ✅ NEW: Fetch expired count
+    fetchExpiredCount();
+    fetchStatusCounts();
     
-    // ✅ NEW: Refresh expired count every 5 minutes
+    // Refresh expired count every 5 minutes
     const interval = setInterval(() => {
       fetchExpiredCount();
+      fetchStatusCounts();
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // ✅ NEW: Fetch expired E-way Bills count
+  // Fetch expired E-way Bills count
   const fetchExpiredCount = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/v1/ewaybills/expired/count");
-      const result = await response.json();
+      const result = await ewayBillAPI.getExpiredCount();
       
       if (result.success) {
         setExpiredCount(result.count);
@@ -42,7 +51,29 @@ export default function HomePage() {
     }
   };
 
-  // ✅ NEW: Handle notification click
+  // Fetch status counts using activity-based endpoints
+  const fetchStatusCounts = async () => {
+    try {
+      // Fetch from activity-based endpoints
+      const [delivered, undelivered, pending, rto] = await Promise.all([
+        activityAPI.getDelivered(),
+        activityAPI.getUndelivered(),
+        activityAPI.getPending(),
+        activityAPI.getRTO(),
+      ]);
+
+      setDeliveredCount(delivered.success ? delivered.count : 0);
+      setUndeliveredCount(undelivered.success ? undelivered.count : 0);
+      setPendingCount(pending.success ? pending.count : 0);
+      setRtoCount(rto.success ? rto.count : 0);
+      // POD count is same as delivered count (since POD is for delivered dockets)
+      setPodCount(delivered.success ? delivered.count : 0);
+    } catch (error) {
+      console.error("Error fetching status counts:", error);
+    }
+  };
+
+  // Handle notification click
   const handleExpiredClick = () => {
     navigate("/expired-ewaybills");
   };
@@ -56,11 +87,11 @@ export default function HomePage() {
     { label: 'TOTAL BOOKING', value: totalDockets, path: '/totalbooking', dynamic: true },
     { label: 'MIS REPORTS',  path: '/misreports' },
     { label: 'E-WAY BILL', value: totalEWayBill, path: '/ewaybill', dynamic: true },
-    { label: 'DELIVERED', value: 288, path: null },
-    { label: 'UNDELIVERED', value: 0, path: null },
-    { label: 'PENDING', value: 3657, path: null },
-    { label: 'RTO', value: 3083, path: null },
-    { label: 'PROOF OF DELIVERY', value: 0, path: null },
+    { label: 'DELIVERED', value: deliveredCount, path: '/delivered', dynamic: true },
+    { label: 'UNDELIVERED', value: undeliveredCount, path: '/undelivered', dynamic: true },
+    { label: 'PENDING', value: pendingCount, path: '/pending', dynamic: true },
+    { label: 'RTO', value: rtoCount, path: '/rto', dynamic: true },
+    { label: 'PROOF OF DELIVERY', value: podCount, path: '/proofofdelivery', dynamic: true },
   ];
 
   const handleItemClick = (path) => {
@@ -131,7 +162,7 @@ export default function HomePage() {
                           {searchResults.slice(0, 5).map((item, idx) => (
                             <tr
                               key={idx}
-                              onClick={() => navigate(`/update-docket/${item.docket._id}`)}
+                              onClick={() => navigate(`/view-docket/${item.docket._id}`)}
                               className="border-b hover:bg-blue-50 cursor-pointer"
                             >
                               <td className="px-4 py-2 font-medium text-blue-700 underline">
@@ -225,7 +256,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* ✅ UPDATED: E-Way Bill Validity Notification (Only shows if expired count > 0) */}
+      {/* E-Way Bill Validity Notification (Only shows if expired count > 0) */}
       {expiredCount > 0 && (
         <button
           onClick={handleExpiredClick}
@@ -251,7 +282,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <div className="text-center py-8 text-gray-500 text-sm mt-12">
-        <p>All Rights Reserved @ 2025 | <span className="text-blue-600 font-medium">Urban Club Pvt. Ltd.</span></p>
+        <p>All Rights Reserved @ 2026 | <span className="text-blue-600 font-medium">Urban Club Pvt. Ltd.</span></p>
       </div>
     </div>
   );

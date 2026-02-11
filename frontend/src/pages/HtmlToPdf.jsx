@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { docketAPI } from "../utils/api";
 
 export default function HtmlToPdf() {
   const { id } = useParams();
@@ -9,8 +10,7 @@ export default function HtmlToPdf() {
   useEffect(() => {
     const fetchDocketData = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/v1/dockets/${id}`);
-        const result = await res.json();
+        const result = await docketAPI.getById(id);
         setDocketData(result.data);
         setLoading(false);
       } catch (error) {
@@ -52,7 +52,7 @@ export default function HtmlToPdf() {
 
   const { docket, bookingInfo, invoice } = docketData;
 
-  // ✅ Get dimensions array (handle both old single object and new array format)
+  // Get dimensions array (handle both old single object and new array format)
   const dimensionsArray = Array.isArray(docket?.dimensions) 
     ? docket.dimensions 
     : docket?.dimensions 
@@ -240,7 +240,7 @@ export default function HtmlToPdf() {
           </div>
         </div>
 
-        {/* ✅ UPDATED: Display ALL dimensions from array */}
+        {/* Display ALL dimensions from array */}
         {dimensionsArray.length > 0 && (
           <div className="absolute" style={{top: '525px', left: '149px', maxWidth: '420px'}}>
             <div className="text-[15px] font-bold space-y-1">
