@@ -54,11 +54,6 @@ app.use("/api/v1/ewaybills", ewayBillRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/coloaders", coLoaderRoutes); // ✅ Mount co-loader routes
 
-// Root route
-app.get("/", (req, res) => {
-  res.send("🚚 Logistics Management API is running...");
-});
-
 // Production setup - serve static files if needed
 if (process.env.NODE_ENV === "production") {
   const frontendPath = path.join(__dirname, "../frontend/dist");
@@ -66,12 +61,17 @@ if (process.env.NODE_ENV === "production") {
   
   // Only serve index.html for non-API routes using middleware
   app.use((req, res, next) => {
-    // Skip if it's an API route or a file request
-    if (req.path.startsWith('/api/') || req.path.includes('.')) {
+    // Skip if it's an API route
+    if (req.path.startsWith('/api/')) {
       return next();
     }
     // Serve index.html for all other routes (SPA support)
     res.sendFile(path.join(frontendPath, "index.html"));
+  });
+} else {
+  // In development, show API message on root
+  app.get("/", (req, res) => {
+    res.send("🚚 Logistics Management API is running...");
   });
 }
 
