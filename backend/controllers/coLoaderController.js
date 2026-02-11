@@ -1,5 +1,5 @@
 // controllers/coLoaderController.js
-import CoLoader from "../models/CoLoader.js";
+import CoLoader from "../models/Coloader.js";
 import Docket from "../models/Docket.js";
 import cloudinary from "../config/cloudinary.js";
 
