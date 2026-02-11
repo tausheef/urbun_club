@@ -5,7 +5,7 @@ import Invoice from "../models/Invoice.js";
 import Consignor from "../models/Consignor.js";
 import Consignee from "../models/Consignee.js";
 import DocketCounter from "../models/DocketCounter.js";
-import { createBookedActivity } from "./activityController.js";
+import { createBookedActivity } from "./ActivityController.js";
 import { calculateDistance, calculateEwayBillValidity, calculateExpiryDate } from "../utils/Distancecalculator.js"; // ✅ NEW
 
 // Helper function to parse DD/MM/YYYY format OR ISO date strings
