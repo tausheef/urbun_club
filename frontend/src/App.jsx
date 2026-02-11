@@ -12,7 +12,7 @@ import EwayBill from './pages/EwayBill';
 import MisReports from './pages/MisReports';
 import UpdateDocket from './pages/UpdateDocket';
 import ViewDocket from './pages/ViewDocket';
-import HtmlToPdf from './pages/HtmltoPdf';
+import HtmlToPdf from './pages/HtmlToPdf';
 import UpdateActivity from './pages/UpdateActivity';
 import ExpiredEwayBills from './pages/ExpiredEwayBills';
 
