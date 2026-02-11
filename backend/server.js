@@ -12,7 +12,7 @@ import docketRoutes from "./routes/docketRoutes.js"; // ✅ This now includes ca
 import consignorRoutes from "./routes/consignorRoutes.js";
 import consigneeRoutes from "./routes/consigneeRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
-import activityRoutes from "./routes/activityRoutes.js";
+import activityRoutes from "./routes/ActivityRoutes.js";
 import ewayBillRoutes from "./routes/ewayBillRoutes.js";
 import authRoutes from "./routes/AuthRoutes.js";
 import coLoaderRoutes from "./routes/coLoaderRoutes.js"; // ✅ Add co-loader routes
