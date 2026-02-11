@@ -312,7 +312,7 @@ export default function CoLoaderDetails() {
             ✏️ Edit Co-Loader
           </button>
           <button
-            onClick={() => navigate(`/docket-details/${coLoader.docketId?._id}`)}
+            onClick={() => navigate(`/view-docket/${coLoader.docketId?._id}`)}
             className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
           >
             📋 View Docket
