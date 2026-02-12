@@ -73,6 +73,12 @@ export const docketAPI = {
     return response.data;
   },
 
+  // ✅ NEW: Get next docket number for auto-generation
+  getNextNumber: async () => {
+    const response = await axiosInstance.get("/dockets/next-number");
+    return response.data;
+  },
+
   // Create new docket
   create: async (docketData) => {
     const response = await axiosInstance.post("/dockets", docketData);
@@ -198,7 +204,7 @@ export const activityAPI = {
     return response.data;
   },
 
-  // ✅ NEW: Delete POD image from activity
+  // Delete POD image from activity
   deletePOD: async (activityId) => {
     const response = await axiosInstance.delete(
       `/activities/${activityId}/delete-pod`
@@ -265,7 +271,7 @@ export const coLoaderAPI = {
     formData.append("transportName", coLoaderData.transportName);
     formData.append("transportDocket", coLoaderData.transportDocket);
     
-    // ✅ Only append challan if it exists (optional field)
+    // Only append challan if it exists (optional field)
     if (coLoaderData.challan) {
       formData.append("challan", coLoaderData.challan);
     }
