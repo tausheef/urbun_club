@@ -173,7 +173,7 @@ export default function ProofOfDelivery() {
 
     const query = searchQuery.toLowerCase();
     const docketNo = item.docket.docketNo?.toLowerCase() || "";
-    const consigneeName = item.docket.consignee?.name?.toLowerCase() || "";
+    const consigneeName = item.docket.consignee?.consigneeName?.toLowerCase() || "";
     const destinationCity = item.docket.destinationCity?.toLowerCase() || "";
     const latestActivity = getLatestDeliveredActivity(item.activities);
     const status = latestActivity?.status?.toLowerCase() || "";
@@ -354,7 +354,7 @@ export default function ProofOfDelivery() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
-                            {item.docket.consignee?.name || "N/A"}
+                            {item.docket.consignee?.consigneeName || "N/A"}
                           </div>
                           <div className="text-xs text-gray-500">
                             {item.docket.destinationCity}

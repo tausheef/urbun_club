@@ -9,25 +9,20 @@ export default function DocketForm() {
     invNo: '',
     weight: '0',
     packet: '0',
-    invDate: '', // ✅ Date picker
+    invDate: '',
     netInvValue: '0',
     gInvValue: '0',
-    docketNo: '', // ✅ Will be auto-filled
-    bookingDate: '', // ✅ Date picker
+    docketNo: '',
+    bookingDate: '',
     destinationCity: '',
-    location: '',
     postalCode: '',
-    expectedDelivery: '', // ✅ Date picker
+    expectedDelivery: '',
     customerType: 'Contractual Client',
     bookingMode: 'ROAD',
-    origin: '',
     originCity: '',
-    originLocation: '',
-    destinationBranch: '',
     billingParty: '',
     billingAt: '',
     bookingType: 'To Pay',
-    direction: 'DIRECT',
     deliveryMode: 'Door Delivery',
     loadType: 'PTL',
     gstinNo: '',
@@ -219,25 +214,20 @@ export default function DocketForm() {
             invNo: '',
             weight: '0',
             packet: '0',
-            invDate: '', // ✅ Date picker
+            invDate: '',
             netInvValue: '0',
             gInvValue: '0',
             docketNo: '',
-            bookingDate: '', // ✅ Date picker
+            bookingDate: '',
             destinationCity: '',
-            location: '',
             postalCode: '',
-            expectedDelivery: '', // ✅ Date picker
+            expectedDelivery: '',
             customerType: 'Contractual Client',
             bookingMode: 'ROAD',
-            origin: '',
             originCity: '',
-            originLocation: '',
-            destinationBranch: '',
             billingParty: '',
             billingAt: '',
             bookingType: 'To Pay',
-            direction: 'DIRECT',
             deliveryMode: 'Door Delivery',
             loadType: 'PTL',
             gstinNo: '',
@@ -378,10 +368,6 @@ export default function DocketForm() {
                 <input type="text" name="destinationCity" value={formData.destinationCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700">Location</label>
-                <input type="text" name="location" value={formData.location} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
-              </div>
-              <div>
                 <label className="text-xs font-medium text-gray-700">Postal Code</label>
                 <input type="text" name="postalCode" value={formData.postalCode} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
               </div>
@@ -412,20 +398,8 @@ export default function DocketForm() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700">Origin</label>
-                <input type="text" name="origin" value={formData.origin} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
-              </div>
-              <div>
                 <label className="text-xs font-medium text-gray-700">Origin City</label>
                 <input type="text" name="originCity" value={formData.originCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" placeholder="Enter city name" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-700">Origin Location</label>
-                <input type="text" name="originLocation" value={formData.originLocation} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-700">Destination Branch</label>
-                <input type="text" name="destinationBranch" value={formData.destinationBranch} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" placeholder="Enter branch name" />
               </div>
             </div>
           </div>
@@ -448,12 +422,6 @@ export default function DocketForm() {
                   <option value="To Pay">To Pay</option>
                   <option value="Paid">Paid</option>
                   <option value="Credit">Credit</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-700">Direction</label>
-                <select name="direction" value={formData.direction} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
-                  <option value="DIRECT">DIRECT</option>
                 </select>
               </div>
               <div>

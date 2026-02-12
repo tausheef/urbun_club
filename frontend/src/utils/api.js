@@ -109,6 +109,12 @@ export const docketAPI = {
     return response.data;
   },
 
+  // Toggle RTO (Return to Origin) status
+  toggleRto: async (id, rto) => {
+    const response = await axiosInstance.patch(`/dockets/${id}/rto`, { rto });
+    return response.data;
+  },
+
   // Delete docket
   delete: async (id) => {
     const response = await axiosInstance.delete(`/dockets/${id}`);

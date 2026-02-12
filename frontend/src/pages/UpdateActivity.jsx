@@ -214,7 +214,7 @@ export default function UpdateActivity() {
   // ✅ NEW: Handle RTO toggle
   const handleRtoToggle = async () => {
     try {
-      const result = await docketAPI.update(id, { rto: !rto });
+      const result = await docketAPI.toggleRto(id, !rto);
 
       if (result.success) {
         setRto(!rto);

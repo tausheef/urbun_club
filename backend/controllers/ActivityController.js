@@ -434,8 +434,8 @@ export const getRTODockets = async (req, res) => {
       .sort({ date: -1, time: -1 })
       .lean();
 
-    // Get all dockets with RTO flag
-    const rtoDockets = await Docket.find({ rto: true })
+    // Get all dockets with RTO flag (only Active dockets)
+    const rtoDockets = await Docket.find({ rto: true, docketStatus: 'Active' })
       .populate("consignor")
       .populate("consignee")
       .lean();
@@ -452,7 +452,8 @@ export const getRTODockets = async (req, res) => {
     });
 
     const dockets = await Docket.find({
-      _id: { $in: Array.from(rtoDocketIds) }
+      _id: { $in: Array.from(rtoDocketIds) },
+      docketStatus: 'Active'
     })
       .populate("consignor")
       .populate("consignee")

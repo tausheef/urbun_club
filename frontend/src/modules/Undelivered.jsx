@@ -180,12 +180,12 @@ export default function Undelivered() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredDockets.map((item, idx) => {
-                    const latestActivity = item.activities?.[item.activities.length - 1];
+                    const latestActivity = item.activities?.[0];
                     
                     return (
                       <tr
                         key={idx}
-                        onClick={() => handleDocketClick(item.docket._id)}
+                        onClick={() => item.docket?._id && handleDocketClick(item.docket._id)}
                         className="hover:bg-blue-50 cursor-pointer transition"
                       >
                         <td className="px-6 py-4 whitespace-nowrap">

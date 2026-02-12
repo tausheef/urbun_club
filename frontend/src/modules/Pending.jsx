@@ -25,7 +25,7 @@ export default function Pending() {
         const consignee = item.docket?.consignee?.consigneeName?.toLowerCase() || '';
         const origin = item.bookingInfo?.originCity?.toLowerCase() || '';
         const destination = item.docket?.destinationCity?.toLowerCase() || '';
-        const status = item.activities?.[item.activities.length - 1]?.status?.toLowerCase() || '';
+        const status = item.activities?.[0]?.status?.toLowerCase() || '';
         
         return (
           docketNo.includes(query) ||
@@ -182,23 +182,32 @@ export default function Pending() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredDockets.map((item, idx) => {
-                    const latestActivity = item.activities?.[item.activities.length - 1];
-                    const status = latestActivity?.status || 'Pending';
+                    const latestActivity = item.activities?.[0];
+                    const status = latestActivity?.status || 'Booked';
                     
                     // Determine badge color based on status
-                    let badgeColor = 'bg-yellow-100 text-yellow-800';
-                    if (status.toLowerCase().includes('transit')) {
+                    let badgeColor = 'bg-yellow-100 text-yellow-800'; // default: Booked / unknown
+                    const statusLower = status.toLowerCase();
+                    if (statusLower.includes('transit')) {
                       badgeColor = 'bg-blue-100 text-blue-800';
-                    } else if (status.toLowerCase().includes('picked')) {
+                    } else if (statusLower.includes('picked')) {
                       badgeColor = 'bg-purple-100 text-purple-800';
-                    } else if (status.toLowerCase().includes('out for delivery')) {
+                    } else if (statusLower.includes('out for delivery')) {
                       badgeColor = 'bg-indigo-100 text-indigo-800';
+                    } else if (statusLower.includes('rto') || statusLower.includes('return')) {
+                      badgeColor = 'bg-orange-100 text-orange-800';
+                    } else if (statusLower.includes('hold') || statusLower.includes('warehouse')) {
+                      badgeColor = 'bg-gray-100 text-gray-800';
+                    } else if (statusLower.includes('appointment')) {
+                      badgeColor = 'bg-pink-100 text-pink-800';
+                    } else if (statusLower.includes('customs')) {
+                      badgeColor = 'bg-red-100 text-red-800';
                     }
                     
                     return (
                       <tr
                         key={idx}
-                        onClick={() => handleDocketClick(item.docket._id)}
+                        onClick={() => item.docket?._id && handleDocketClick(item.docket._id)}
                         className="hover:bg-blue-50 cursor-pointer transition"
                       >
                         <td className="px-6 py-4 whitespace-nowrap">

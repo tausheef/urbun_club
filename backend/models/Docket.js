@@ -5,7 +5,6 @@ const docketSchema = new mongoose.Schema(
     docketNo: { type: String, required: true },
     bookingDate: { type: Date, required: true },
     destinationCity: { type: String, required: true },
-    location: { type: String },
     postalCode: { type: String },
     expectedDelivery: { type: Date },
     

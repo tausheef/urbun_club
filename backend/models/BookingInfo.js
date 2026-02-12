@@ -14,10 +14,7 @@ const bookingInfoSchema = new mongoose.Schema(
       enum: ["ROAD", "AIR", "RAIL", "SEA"],
       default: "ROAD" 
     },
-    origin: { type: String, required: true },
     originCity: { type: String },
-    originLocation: { type: String },
-    destinationBranch: { type: String },
     billingParty: { type: String },
     billingAt: { type: String },
     bookingType: { type: String },
