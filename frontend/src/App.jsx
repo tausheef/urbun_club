@@ -35,6 +35,7 @@ import CoLoaderEntry from './coloader/CoLoaderEntry';
 import CoLoaderBookings from './coloader/CoLoaderBookings';
 import CoLoaderDetails from './coloader/CoLoaderDetails';
 import CoLoaderModify from './coloader/CoLoaderModify';
+import SearchActivity from './pages/SearchActivity';
 
 // Layout wrapper component
 function LayoutWithSidebar({ children }) {
@@ -140,6 +141,16 @@ export default function App() {
               <ProtectedRoute>
                 <LayoutWithSidebar>
                   <ExpiredEwayBills />
+                </LayoutWithSidebar>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/search-activity"
+            element={
+              <ProtectedRoute>
+                <LayoutWithSidebar>
+                  <SearchActivity />
                 </LayoutWithSidebar>
               </ProtectedRoute>
             }

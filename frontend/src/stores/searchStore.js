@@ -8,25 +8,30 @@ export const useSearchStore = create((set, get) => ({
   searchResults: [],
   loading: false,
   error: null,
+  hasSearched: false, // ✅ NEW: Track if user has performed a search
 
   // Set search type
   setSearchType: (type) => {
-    set({ searchType: type });
+    set({ searchType: type, searchResults: [], hasSearched: false });
   },
 
-  // Set search query
+  // Set search query (only updates input, doesn't search automatically)
   setSearchQuery: (query) => {
     set({ searchQuery: query });
+    // ✅ Clear results if query is empty
+    if (!query.trim()) {
+      set({ searchResults: [], hasSearched: false });
+    }
   },
 
   // Search dockets
   searchDockets: async (query) => {
     if (!query.trim()) {
-      set({ searchResults: [], error: null });
+      set({ searchResults: [], error: null, hasSearched: false });
       return;
     }
 
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, hasSearched: true });
     try {
       const data = await docketAPI.getAll();
 
@@ -61,11 +66,11 @@ export const useSearchStore = create((set, get) => ({
   // Search e-way bills
   searchEWayBills: async (query) => {
     if (!query.trim()) {
-      set({ searchResults: [], error: null });
+      set({ searchResults: [], error: null, hasSearched: false });
       return;
     }
 
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, hasSearched: true });
     try {
       const data = await invoiceAPI.getAll();
 
@@ -95,17 +100,24 @@ export const useSearchStore = create((set, get) => ({
     }
   },
 
-  // Execute search based on type
-  executeSearch: async (query, type) => {
-    if (type === 'DOCKET') {
-      await get().searchDockets(query);
-    } else if (type === 'E-WAY BILL') {
-      await get().searchEWayBills(query);
+  // ✅ NEW: Execute search based on type (only when user clicks Search or presses Enter)
+  executeSearch: async () => {
+    const { searchQuery, searchType } = get();
+    
+    if (!searchQuery.trim()) {
+      set({ searchResults: [], error: null, hasSearched: false });
+      return;
+    }
+
+    if (searchType === 'DOCKET') {
+      await get().searchDockets(searchQuery);
+    } else if (searchType === 'E-WAY BILL') {
+      await get().searchEWayBills(searchQuery);
     }
   },
 
   // Clear search
   clearSearch: () => {
-    set({ searchResults: [], searchQuery: '', error: null });
+    set({ searchResults: [], searchQuery: '', error: null, hasSearched: false });
   },
 }));

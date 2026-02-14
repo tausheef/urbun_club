@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import Navbar from "../components/Navbar";
 import * as XLSX from "xlsx";
-import { docketAPI } from "../utils/api";
+import { docketAPI, activityAPI } from "../utils/api";
 
 export default function TotalBooking() {
   const navigate = useNavigate();
@@ -17,7 +17,8 @@ export default function TotalBooking() {
   const [filterYear, setFilterYear] = useState("");
   const [isFilterApplied, setIsFilterApplied] = useState(false);
 
-  const rowsPerPage = 6;
+  const [activityStatuses, setActivityStatuses] = useState({});
+  const rowsPerPage = 8;
 
   // Everyone goes to ViewDocket (read-only)
   const handleDocketClick = (docketId) => {
@@ -61,31 +62,43 @@ export default function TotalBooking() {
             bookingDate: item.docket?.bookingDate
               ? new Date(item.docket.bookingDate).toLocaleDateString("en-IN")
               : "-",
-            mode: item.bookingInfo?.bookingMode || "-",
-            origin: item.bookingInfo?.origin || "-",
-            branch: item.bookingInfo?.destinationBranch || "-",
-            bookingType: item.bookingInfo?.bookingType || "-",
-            destination: item.docket?.destinationCity || "-",
-            docketType: item.bookingInfo?.loadType || "-",
-            consignerName: consignor?.consignorName || "-",
-            consigneeName: consignee?.consigneeName || "-",
-            customerType: item.bookingInfo?.customerType || "-",
             expectedDate: item.docket?.expectedDelivery
               ? new Date(item.docket.expectedDelivery).toLocaleDateString("en-IN")
               : "-",
-            pendingDays: calculatePendingDays(item.docket?.expectedDelivery),
-            userLog: item.bookingInfo?.createdBy || "-",
-            creationDate: item.docket?.createdAt
-              ? new Date(item.docket.createdAt).toLocaleDateString("en-IN")
-              : "-",
+            mode: item.bookingInfo?.bookingMode || "-",
+            from: item.bookingInfo?.originCity || item.bookingInfo?.origin || "-",
+            to: item.docket?.destinationCity || "-",
+            consigneeName: consignee?.consigneeName || "-",
+            consignerName: consignor?.consignorName || "-",
+            coLoader: item.docket?.coLoader || false,
             createdAtRaw: item.docket?.createdAt || null,
-            splBookingRejectStatus: item.bookingInfo?.status || "Active",
           };
         });
 
         setDockets(transformed);
         setFilteredDockets(transformed);
         setError("");
+
+        // ✅ Fetch latest activity status for each docket
+        const statusMap = {};
+        await Promise.all(
+          transformed.map(async (d) => {
+            if (!d.id) return;
+            try {
+              const actRes = await activityAPI.getByDocket(d.id);
+              if (actRes.success && Array.isArray(actRes.data) && actRes.data.length > 0) {
+                // Get latest activity (last in array)
+                const latest = actRes.data[actRes.data.length - 1];
+                statusMap[d.id] = latest.status || "-";
+              } else {
+                statusMap[d.id] = "Booked";
+              }
+            } catch {
+              statusMap[d.id] = "-";
+            }
+          })
+        );
+        setActivityStatuses(statusMap);
       } catch (err) {
         const errorMessage = err.response?.data?.message || err.message || 'Failed to fetch dockets';
         setError(errorMessage);
@@ -246,66 +259,101 @@ export default function TotalBooking() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-blue-600 text-white">
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Docket No</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">#</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Docket</th>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Booking Date</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Delivery</th>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Mode</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Origin</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Branch</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Booking Type</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Destination</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Docket Type</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Consigner Name</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Consignee Name</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Customer Type</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Expected Date</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Pending Days</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">UserLog</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Creation Date</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Spl. Booking Reject</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">From</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">To</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Consignee</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Consignor</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {currentDockets.length > 0 ? (
-                    currentDockets.map((d, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition-colors">
-                        <td 
-                          className="px-4 py-3.5 text-sm font-medium text-blue-700 underline cursor-pointer whitespace-nowrap"
-                          onClick={() => handleDocketClick(d.id)}
+                    currentDockets.map((d, i) => {
+                      const status = activityStatuses[d.id] || "Booked";
+                      const isCoLoader = d.coLoader === true;
+
+                      // Status badge color
+                      const statusColor =
+                        status === "Delivered"   ? "bg-green-100 text-green-700" :
+                        status === "Undelivered" ? "bg-red-100 text-red-700" :
+                        status === "In Transit"  ? "bg-blue-100 text-blue-700" :
+                        status === "Booked"      ? "bg-gray-100 text-gray-600" :
+                        status === "On Hold"     ? "bg-yellow-100 text-yellow-700" :
+                        "bg-purple-100 text-purple-700";
+
+                      return (
+                        <tr
+                          key={i}
+                          className={`transition-colors ${
+                            isCoLoader
+                              ? "bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-400"
+                              : "hover:bg-gray-50"
+                          }`}
                         >
-                          {d.docketNo}
-                        </td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.bookingDate}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.mode}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.origin}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.branch}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.bookingType}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.destination}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.docketType}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.consignerName}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.consigneeName}</td>
-                        <td className="px-4 py-3.5 text-sm whitespace-nowrap">
-                          <span className="text-purple-600 font-medium">{d.customerType}</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.expectedDate}</td>
-                        <td className="px-4 py-3.5 text-sm whitespace-nowrap">
-                          {d.pendingDays !== "-" && d.pendingDays !== "Pending" ? (
-                            <span className="text-red-600 font-medium">{d.pendingDays}</span>
-                          ) : (
-                            <span className="text-gray-700">{d.pendingDays}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.userLog}</td>
-                        <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{d.creationDate}</td>
-                        <td className="px-4 py-3.5 text-sm whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            {d.splBookingRejectStatus}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                          {/* # serial */}
+                          <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
+                            {startIdx + i + 1}
+                          </td>
+
+                          {/* Docket No - clickable */}
+                          <td
+                            className="px-4 py-3 whitespace-nowrap cursor-pointer"
+                            onClick={() => handleDocketClick(d.id)}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline">
+                                {d.docketNo}
+                              </span>
+                              {isCoLoader && (
+                                <span className="text-xs bg-orange-200 text-orange-700 px-1.5 py-0.5 rounded font-semibold">
+                                  🚛 CL
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Booking Date */}
+                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{d.bookingDate}</td>
+
+                          {/* Delivery (Expected) */}
+                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{d.expectedDate}</td>
+
+                          {/* Mode */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">
+                              {d.mode}
+                            </span>
+                          </td>
+
+                          {/* From */}
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.from}</td>
+
+                          {/* To */}
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.to}</td>
+
+                          {/* Consignee */}
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.consigneeName}</td>
+
+                          {/* Consignor */}
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.consignerName}</td>
+
+                          {/* Status */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusColor}`}>
+                              {status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan="16" className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan="10" className="px-4 py-8 text-center text-gray-500">
                         No dockets found for the selected filter
                       </td>
                     </tr>

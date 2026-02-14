@@ -10,7 +10,7 @@ export default function HomePage() {
   
   // Get data from Zustand stores
   const { fetchDockets, fetchInvoices, getTotalDockets, getEWayBillCount, loading } = useDocketStore();
-  const { searchResults, searchQuery, searchType, loading: searchLoading, clearSearch } = useSearchStore();
+  const { searchResults, searchQuery, searchType, loading: searchLoading, clearSearch, hasSearched } = useSearchStore();
 
   // E-way Bill expiry notification state
   const [expiredCount, setExpiredCount] = useState(0);
@@ -100,8 +100,8 @@ export default function HomePage() {
     }
   };
 
-  // Show search results if there's a search query
-  const isSearching = searchQuery.trim() !== '';
+  // ✅ UPDATED: Show search results only if user has performed a search
+  const isSearching = hasSearched && searchQuery.trim() !== '';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -112,71 +112,85 @@ export default function HomePage() {
       <div className="max-w-6xl mx-auto px-6 py-8">
         <h1 className="text-center text-2xl font-light text-gray-600 mb-8">User Dashboard</h1>
 
-        {/* Search Results Section */}
+        {/* ✅ UPDATED: Search Results Section - Only shows after search is executed */}
         {isSearching && (
           <div className="mb-8">
             <div className="bg-white rounded shadow p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-gray-800">
                   {searchType} Search Results
+                  {!searchLoading && searchResults.length > 0 && (
+                    <span className="ml-2 text-sm font-normal text-gray-500">
+                      ({searchResults.length} result{searchResults.length !== 1 ? 's' : ''})
+                    </span>
+                  )}
                 </h2>
                 <button
                   onClick={clearSearch}
-                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium transition"
                 >
                   Clear Search
                 </button>
               </div>
 
+              {/* Loading State */}
               {searchLoading && (
-                <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="mt-2 text-gray-600">Searching...</p>
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
+                  <p className="mt-4 text-gray-600 font-medium">Searching {searchType}...</p>
                 </div>
               )}
 
+              {/* No Results */}
               {!searchLoading && searchResults.length === 0 && (
-                <p className="text-center py-8 text-gray-500">No results found for "{searchQuery}"</p>
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-3">
+                    <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-600 font-medium">No results found</p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    Try searching with different keywords for "{searchQuery}"
+                  </p>
+                </div>
               )}
 
+              {/* Results Found */}
               {!searchLoading && searchResults.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-600 mb-4">
-                    Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
-                  </p>
-
+                <div className="space-y-4">
                   {searchType === 'DOCKET' && (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
                       <table className="w-full text-sm">
-                        <thead className="bg-blue-50">
+                        <thead className="bg-gradient-to-r from-blue-50 to-blue-100">
                           <tr>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Docket No</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Booking Date</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Origin</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Destination</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Consignor</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Consignee</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Docket No</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Booking Date</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Origin</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Destination</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Consignor</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Consignee</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {searchResults.slice(0, 5).map((item, idx) => (
+                        <tbody className="divide-y divide-gray-200">
+                          {searchResults.slice(0, 10).map((item, idx) => (
                             <tr
                               key={idx}
                               onClick={() => navigate(`/view-docket/${item.docket._id}`)}
-                              className="border-b hover:bg-blue-50 cursor-pointer"
+                              className="hover:bg-blue-50 cursor-pointer transition-colors"
                             >
-                              <td className="px-4 py-2 font-medium text-blue-700 underline">
+                              <td className="px-4 py-3 font-medium text-blue-700 hover:text-blue-900 underline">
                                 {item.docket?.docketNo || '-'}
                               </td>
-                              <td className="px-4 py-2">
+                              <td className="px-4 py-3 text-gray-700">
                                 {item.docket?.bookingDate
                                   ? new Date(item.docket.bookingDate).toLocaleDateString('en-IN')
                                   : '-'}
                               </td>
-                              <td className="px-4 py-2">{item.bookingInfo?.originCity || '-'}</td>
-                              <td className="px-4 py-2">{item.docket?.destinationCity || '-'}</td>
-                              <td className="px-4 py-2">{item.docket?.consignor?.consignorName || '-'}</td>
-                              <td className="px-4 py-2">{item.docket?.consignee?.consigneeName || '-'}</td>
+                              <td className="px-4 py-3 text-gray-700">{item.bookingInfo?.originCity || '-'}</td>
+                              <td className="px-4 py-3 text-gray-700">{item.docket?.destinationCity || '-'}</td>
+                              <td className="px-4 py-3 text-gray-700">{item.docket?.consignor?.consignorName || '-'}</td>
+                              <td className="px-4 py-3 text-gray-700">{item.docket?.consignee?.consigneeName || '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -185,27 +199,27 @@ export default function HomePage() {
                   )}
 
                   {searchType === 'E-WAY BILL' && (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
                       <table className="w-full text-sm">
-                        <thead className="bg-blue-50">
+                        <thead className="bg-gradient-to-r from-blue-50 to-blue-100">
                           <tr>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">E-WayBill</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Invoice No</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Item Description</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Invoice Date</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-700">Net Value</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">E-Way Bill</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Invoice No</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Item Description</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Invoice Date</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Net Value</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {searchResults.slice(0, 5).map((item, idx) => (
-                            <tr key={idx} className="border-b hover:bg-gray-50">
-                              <td className="px-4 py-2 text-gray-800 font-medium">{item.eWayBill || '-'}</td>
-                              <td className="px-4 py-2 text-gray-700">{item.invoiceNo || '-'}</td>
-                              <td className="px-4 py-2 text-gray-700">{item.itemDescription || '-'}</td>
-                              <td className="px-4 py-2 text-gray-700">
+                        <tbody className="divide-y divide-gray-200">
+                          {searchResults.slice(0, 10).map((item, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3 text-gray-800 font-medium">{item.eWayBill || '-'}</td>
+                              <td className="px-4 py-3 text-gray-700">{item.invoiceNo || '-'}</td>
+                              <td className="px-4 py-3 text-gray-700">{item.itemDescription || '-'}</td>
+                              <td className="px-4 py-3 text-gray-700">
                                 {item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-IN') : '-'}
                               </td>
-                              <td className="px-4 py-2 text-gray-700">₹ {item.netInvoiceValue?.toLocaleString('en-IN') || 0}</td>
+                              <td className="px-4 py-3 text-gray-700">₹ {item.netInvoiceValue?.toLocaleString('en-IN') || 0}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -213,10 +227,13 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  {searchResults.length > 5 && (
-                    <p className="text-sm text-gray-600 text-center mt-4">
-                      Showing 5 of {searchResults.length} results
-                    </p>
+                  {/* Show more indicator */}
+                  {searchResults.length > 10 && (
+                    <div className="text-center pt-2 pb-1">
+                      <p className="text-sm text-gray-500">
+                        Showing 10 of {searchResults.length} results
+                      </p>
+                    </div>
                   )}
                 </div>
               )}

@@ -181,9 +181,14 @@ export const activityAPI = {
     return response.data;
   },
 
-  // Create new activity
+  // Create new activity (supports FormData for image upload)
   create: async (activityData) => {
-    const response = await axiosInstance.post("/activities", activityData);
+    const isFormData = activityData instanceof FormData;
+    const response = await axiosInstance.post("/activities", activityData, {
+      headers: isFormData
+        ? { "Content-Type": "multipart/form-data" }
+        : { "Content-Type": "application/json" },
+    });
     return response.data;
   },
 

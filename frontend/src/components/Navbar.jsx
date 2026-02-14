@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { Menu, X, LogOut, User, Bell, Search } from 'lucide-react';
 import { useSearchStore } from '../stores/searchStore';
-import { useAuth } from '../contexts/AuthContext'; // ✅ NEW: Import auth
+import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   
-  const { searchType, searchQuery, setSearchQuery, executeSearch } = useSearchStore();
-  const { user, logout, isAdmin } = useAuth(); // ✅ NEW: Get user info and logout
+  const { searchType, searchQuery, setSearchType, setSearchQuery, executeSearch } = useSearchStore();
+  const { user, logout, isAdmin } = useAuth();
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -17,17 +17,25 @@ export default function Navbar() {
 
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      logout(); // ✅ UPDATED: Use auth logout
+      logout();
     }
   };
 
-  const handleSearch = async (e) => {
+  // ✅ NEW: Only update input value (no automatic search)
+  const handleInputChange = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
-    
-    // Execute search as user types
-    if (query.trim()) {
-      await executeSearch(query, searchType);
+  };
+
+  // ✅ NEW: Trigger search on button click
+  const handleSearchClick = () => {
+    executeSearch();
+  };
+
+  // ✅ NEW: Trigger search on Enter key press
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      executeSearch();
     }
   };
 
@@ -36,10 +44,9 @@ export default function Navbar() {
     setShowSearchDropdown(false);
   };
 
-  // ✅ NEW: Clear search instantly
+  // ✅ Clear search instantly
   const handleClearSearch = () => {
     setSearchQuery('');
-    executeSearch('', searchType);
   };
 
   return (
@@ -61,7 +68,7 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Search Bar with Toggle */}
+          {/* Search Bar with Toggle - Desktop */}
           <div className="hidden md:flex items-center gap-2 flex-1 mx-8">
             {/* Search Type Dropdown Toggle */}
             <div className="relative">
@@ -107,31 +114,43 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Search Input - ✅ YOUTUBE STYLE: Icon transforms from Search to X */}
-            <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder={`Search ${searchType}...`}
-                value={searchQuery}
-                onChange={handleSearch}
-                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              
-              {/* ✅ DYNAMIC ICON: Search icon → X icon when typing */}
-              {searchQuery ? (
-                // Show X icon when there's text
-                <button
-                  onClick={handleClearSearch}
-                  className="absolute left-3 top-2.5 text-gray-500 hover:text-gray-700 transition cursor-pointer"
-                  title="Clear search"
-                  type="button"
-                >
-                  <X size={18} />
-                </button>
-              ) : (
-                // Show Search icon when empty
-                <Search className="absolute left-3 top-2.5 w-[18px] h-[18px] text-gray-400 pointer-events-none" />
-              )}
+            {/* ✅ UPDATED: Search Input with Search Button */}
+            <div className="relative flex-1 flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder={`Search by Docket Number, Consignor, or Consignee...`}
+                  value={searchQuery}
+                  onChange={handleInputChange}
+                  onKeyPress={handleKeyPress}
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                
+                {/* ✅ DYNAMIC ICON ON LEFT: Search icon → X icon when typing */}
+                {searchQuery ? (
+                  // Show X icon when there's text - CLICKABLE to clear
+                  <button
+                    onClick={handleClearSearch}
+                    className="absolute left-3 top-2.5 text-gray-500 hover:text-gray-700 transition cursor-pointer"
+                    title="Clear search"
+                    type="button"
+                  >
+                    <X size={18} />
+                  </button>
+                ) : (
+                  // Show Search icon when empty
+                  <Search className="absolute left-3 top-2.5 w-[18px] h-[18px] text-gray-400 pointer-events-none" />
+                )}
+              </div>
+
+              {/* ✅ NEW: Search Button */}
+              <button
+                onClick={handleSearchClick}
+                className="px-6 py-2 bg-blue-600 text-white font-medium text-sm rounded-lg hover:bg-blue-700 transition flex items-center gap-2 whitespace-nowrap"
+              >
+                <Search size={18} />
+                Search
+              </button>
             </div>
           </div>
 
@@ -146,15 +165,13 @@ export default function Navbar() {
               </span>
             </button>
 
-            {/* ✅ UPDATED: User Menu - Desktop (Dynamic) */}
+            {/* ✅ UPDATED: User Menu - Desktop with Google Avatar Support */}
             {user && (
               <div className="hidden md:flex items-center gap-3 pl-4 border-l border-gray-200">
                 <div className="text-right">
-                  {/* ✅ Show actual user/admin name */}
                   <p className="text-sm font-medium text-gray-800">
                     {user.username || user.name}
                   </p>
-                  {/* ✅ Show role: Admin or User */}
                   <p className="text-xs text-gray-500">
                     {isAdmin() ? (
                       <span className="text-green-600 font-semibold">Administrator</span>
@@ -163,10 +180,21 @@ export default function Navbar() {
                     )}
                   </p>
                 </div>
-                {/* ✅ Show first letter of name */}
-                <div className="w-9 h-9 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                  {(user.username || user.name).charAt(0).toUpperCase()}
-                </div>
+                
+                {/* ✅ NEW: Show Google Avatar or Initial */}
+                {user.avatar || user.picture ? (
+                  // Google avatar
+                  <img
+                    src={user.avatar || user.picture}
+                    alt={user.username || user.name}
+                    className="w-9 h-9 rounded-full object-cover border-2 border-blue-200"
+                  />
+                ) : (
+                  // Default initial avatar
+                  <div className="w-9 h-9 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                    {(user.username || user.name).charAt(0).toUpperCase()}
+                  </div>
+                )}
               </div>
             )}
 
@@ -211,20 +239,21 @@ export default function Navbar() {
                 </div>
               </div>
 
-              {/* Mobile Search - ✅ YOUTUBE STYLE: Icon transforms */}
+              {/* ✅ UPDATED: Mobile Search with Search Button */}
               <div className="px-4">
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder={`Search ${searchType}...`}
+                    placeholder={`Search by Docket Number, Consignor, or Consignee...`}
                     value={searchQuery}
-                    onChange={handleSearch}
+                    onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
                     className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   
-                  {/* ✅ DYNAMIC ICON: Search icon → X icon when typing (Mobile) */}
+                  {/* ✅ DYNAMIC ICON ON LEFT: Search icon → X icon when typing (Mobile) */}
                   {searchQuery ? (
-                    // Show X icon when there's text
+                    // Show X icon when there's text - CLICKABLE to clear
                     <button
                       onClick={handleClearSearch}
                       className="absolute left-3 top-2.5 text-gray-500 hover:text-gray-700 transition cursor-pointer"
@@ -238,17 +267,38 @@ export default function Navbar() {
                     <Search className="absolute left-3 top-2.5 w-[18px] h-[18px] text-gray-400 pointer-events-none" />
                   )}
                 </div>
+                
+                {/* ✅ NEW: Mobile Search Button */}
+                <button
+                  onClick={handleSearchClick}
+                  className="w-full mt-2 px-4 py-2 bg-blue-600 text-white font-medium text-sm rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                >
+                  <Search size={18} />
+                  Search
+                </button>
               </div>
               
-              {/* ✅ UPDATED: Mobile Menu User Info (Dynamic) */}
+              {/* ✅ UPDATED: Mobile Menu User Info with Google Avatar Support */}
               {user && (
                 <div className="border-t border-gray-200 pt-3 mt-3">
                   {/* User Info Card */}
                   <div className="px-4 pb-3 mb-3 border-b border-gray-200">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                        {(user.username || user.name).charAt(0).toUpperCase()}
-                      </div>
+                      {/* ✅ NEW: Show Google Avatar or Initial */}
+                      {user.avatar || user.picture ? (
+                        // Google avatar
+                        <img
+                          src={user.avatar || user.picture}
+                          alt={user.username || user.name}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-blue-200"
+                        />
+                      ) : (
+                        // Default initial avatar
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                          {(user.username || user.name).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      
                       <div>
                         <p className="text-sm font-medium text-gray-800">
                           {user.username || user.name}

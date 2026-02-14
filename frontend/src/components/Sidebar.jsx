@@ -31,6 +31,7 @@ export default function Sidebar() {
         { name: 'DOCKET ENTRY', path: '/docketentry', adminOnly: false },
         { name: 'DOCKET MODIFY', path: '/update-docket', adminOnly: true },
         { name: 'DOCKET CANCEL', path: '/cancel-docket', adminOnly: true },
+        { name: 'DOCKET ACTIVITY', path: '/search-activity', adminOnly: false },
       ]
     },
     pod: {
