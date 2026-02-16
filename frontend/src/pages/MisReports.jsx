@@ -57,7 +57,7 @@ export default function MisReports() {
       searchResults.forEach((r, i) => {
         if (r.docketId) {
           const cell = `B${i + 2}`;
-          if (worksheet[cell]) worksheet[cell].l = { Target: `http://localhost:5173/html-to-pdf/${r.docketId}` };
+          if (worksheet[cell]) worksheet[cell].l = { Target: `${window.location.origin}/html-to-pdf/${r.docketId}` };
         }
         if (r.challan) {
           const cell = `E${i + 2}`;
@@ -93,7 +93,7 @@ export default function MisReports() {
         }
         if (result.docketId) {
           const cell = `C${index + 2}`;
-          if (worksheet[cell]) worksheet[cell].l = { Target: `http://localhost:5173/html-to-pdf/${result.docketId}` };
+          if (worksheet[cell]) worksheet[cell].l = { Target: `${window.location.origin}/html-to-pdf/${result.docketId}` };
         }
       });
       const colWidths = [
