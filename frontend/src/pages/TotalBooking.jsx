@@ -87,11 +87,11 @@ export default function TotalBooking() {
             try {
               const actRes = await activityAPI.getByDocket(d.id);
               if (actRes.success && Array.isArray(actRes.data) && actRes.data.length > 0) {
-                // Get latest activity (last in array)
-                const latest = actRes.data[actRes.data.length - 1];
+                // API returns sorted newest first (date: -1, time: -1) → index 0 is latest
+                const latest = actRes.data[0];
                 statusMap[d.id] = latest.status || "-";
               } else {
-                statusMap[d.id] = "Booked";
+                statusMap[d.id] = "-";
               }
             } catch {
               statusMap[d.id] = "-";
@@ -266,15 +266,15 @@ export default function TotalBooking() {
                     <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Mode</th>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">From</th>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">To</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Consignee</th>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Consignor</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Consignee</th>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold whitespace-nowrap">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {currentDockets.length > 0 ? (
                     currentDockets.map((d, i) => {
-                      const status = activityStatuses[d.id] || "Booked";
+                      const status = activityStatuses[d.id] || "-";
                       const isCoLoader = d.coLoader === true;
 
                       // Status badge color
@@ -336,11 +336,11 @@ export default function TotalBooking() {
                           {/* To */}
                           <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.to}</td>
 
-                          {/* Consignee */}
-                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.consigneeName}</td>
-
                           {/* Consignor */}
                           <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.consignerName}</td>
+
+                          {/* Consignee */}
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.consigneeName}</td>
 
                           {/* Status */}
                           <td className="px-4 py-3 whitespace-nowrap">
