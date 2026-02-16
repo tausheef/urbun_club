@@ -5,7 +5,6 @@ import Invoice from "../models/Invoice.js";
 import Consignor from "../models/Consignor.js";
 import Consignee from "../models/Consignee.js";
 import DocketCounter from "../models/DocketCounter.js";
-import { createBookedActivity } from "./ActivityController.js";
 import { calculateDistance, calculateEwayBillValidity, calculateExpiryDate } from "../utils/Distancecalculator.js"; // ✅ NEW
 
 // Helper function to parse DD/MM/YYYY format OR ISO date strings
@@ -254,13 +253,6 @@ export const createDocketWithDetails = async (req, res) => {
       const savedInvoice = await invoiceData.save();
       invoiceId = savedInvoice._id;
     }
-
-    // ✅ NEW: Auto-create "Booked" activity
-    await createBookedActivity(
-      savedDocket._id,
-      originCity || "Unknown",
-      savedDocket.createdAt
-    );
 
     res.status(201).json({
       success: true,

@@ -9,9 +9,9 @@ export const useMisReportsStore = create((set, get) => ({
   loading: false,
   error: null,
 
-  // Set client type
+  // Set client type — also clear results when switching modes
   setClientType: (type) => {
-    set({ clientType: type });
+    set({ clientType: type, searchResults: [], error: null });
   },
 
   // Set client name
@@ -125,19 +125,54 @@ export const useMisReportsStore = create((set, get) => ({
     }
 
     set({ loading: true, error: null });
+
+    // ✅ TP NAME MODE: search co-loaders by transportName
+    if (clientType === 'TPName') {
+      try {
+        const response = await coLoaderAPI.getAll();
+        // getAll() returns response.data which is { success, count, data: [...] }
+        const allCoLoaders = response?.data || [];
+
+        // Filter by transportName (case-insensitive partial match)
+        const filtered = allCoLoaders.filter(item =>
+          (item.transportName || '').toLowerCase().includes(clientName.trim().toLowerCase())
+        );
+
+        // docketId is populated by getAllCoLoaders controller
+        // but it only populates docketNo, bookingDate, destinationCity — NOT consignor/consignee refs
+        // So we fall back to docket-level fields
+        const transformedResults = filtered.map((item, idx) => ({
+          slno: idx + 1,
+          docketId: item.docketId?._id || item.docketId || null,
+          docketNo: item.docketId?.docketNo || '-',
+          consignee: item.docketId?.consignee?.consigneeName || '-',
+          consignor: item.docketId?.consignor?.consignorName || '-',
+          transportDocket: item.transportDocket || '-',
+          transportName: item.transportName || '-',
+          // challan is stored as { url, publicId } — use the url
+          challan: item.challan?.url || null,
+        }));
+
+        set({ searchResults: transformedResults, loading: false });
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Search failed';
+        set({ error: errorMessage, loading: false });
+        console.error('TP Name search error:', error);
+      }
+      return;
+    }
+
+    // ─── Consignor / Consignee mode (original logic unchanged) ───────────────
     try {
-      // Add populate parameter to get consignor/consignee details
       const data = await docketAPI.getAll({ populate: 'consignor,consignee' });
-      
+
       console.log('Dockets API response:', data);
 
       if (data.success && data.data && Array.isArray(data.data)) {
-        // Filter: Exclude cancelled dockets
         const activeDockets = data.data.filter(
           item => item.docket?.docketStatus !== 'Cancelled'
         );
 
-        // Filter based on client type
         const filtered = activeDockets.filter(item => {
           if (!item.docket) {
             console.warn('Item missing docket data:', item);
@@ -164,28 +199,23 @@ export const useMisReportsStore = create((set, get) => ({
 
         console.log(`Filtered ${filtered.length} dockets for ${clientType}: ${clientName}`);
 
-        // Transform data with POD and Co-Loader fetching
         const transformedResults = await Promise.all(
           filtered.map(async (item, idx) => {
             const docketId = item.docket?._id;
             const hasCoLoader = item.docket?.coLoader === true;
-            
-            // Fetch POD for this docket
+
             const podUrl = docketId ? await get().fetchPODForDocket(docketId) : null;
-            
-            // Fetch latest status for this docket
             const currentStatus = docketId ? await get().fetchLatestStatusForDocket(docketId) : '-';
 
-            // ✅ Fetch co-loader data if docket has co-loader
             let coLoaderData = null;
             if (hasCoLoader && docketId) {
               coLoaderData = await get().fetchCoLoaderForDocket(docketId);
             }
 
-            const result = {
+            return {
               slno: idx + 1,
-              date: item.docket?.bookingDate 
-                ? new Date(item.docket.bookingDate).toLocaleDateString('en-IN') 
+              date: item.docket?.bookingDate
+                ? new Date(item.docket.bookingDate).toLocaleDateString('en-IN')
                 : '-',
               docketNo: item.docket?.docketNo || '-',
               consignee: item.docket?.consignee?.consigneeName || '-',
@@ -197,19 +227,15 @@ export const useMisReportsStore = create((set, get) => ({
               weight: item.invoice?.weight || '-',
               mode: item.bookingInfo?.bookingMode || '-',
               status: currentStatus,
-              deliveryDate: item.docket?.expectedDelivery 
-                ? new Date(item.docket.expectedDelivery).toLocaleDateString('en-IN') 
+              deliveryDate: item.docket?.expectedDelivery
+                ? new Date(item.docket.expectedDelivery).toLocaleDateString('en-IN')
                 : '-',
               pod: podUrl || null,
               docketId: docketId,
-              // ✅ Add co-loader fields
               hasCoLoader: hasCoLoader,
               transportName: coLoaderData?.transportName || '-',
               transportDocket: coLoaderData?.transportDocket || '-',
             };
-
-            console.log(`Result ${idx + 1} - CoLoader:`, hasCoLoader ? 'Yes' : 'No');
-            return result;
           })
         );
 
@@ -224,7 +250,6 @@ export const useMisReportsStore = create((set, get) => ({
       console.error('Search error:', error);
     }
   },
-
   // Clear search
   clearSearch: () => {
     set({ searchResults: [], clientName: '', error: null });

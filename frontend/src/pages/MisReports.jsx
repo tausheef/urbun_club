@@ -20,6 +20,7 @@ export default function MisReports() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
+  const isTPNameMode = clientType === 'TPName';
 
   // ✅ Check if any result has co-loader to show/hide columns
   const hasAnyCoLoader = useMemo(() => {
@@ -36,92 +37,79 @@ export default function MisReports() {
     setCurrentPage(1);
   };
 
-  // ✅ Export to Excel with co-loader columns
+  // ✅ Export to Excel — TP Name mode exports co-loader columns, normal mode exports full MIS
   const exportToExcel = () => {
-    if (searchResults.length === 0) {
-      alert('No data to export');
-      return;
-    }
-
-    // Prepare data for Excel with co-loader columns
-    const excelData = searchResults.map(result => {
-      const baseData = {
-        'SLNO': result.slno,
-        'DATE': result.date,
-        'DOCKET NO': result.docketNo,
-        'CONSIGNEE': result.consignee,
-        'CONSIGNOR': result.consignor,
-        'FROM': result.from,
-        'TO': result.to,
-        'INVOICE NO': result.invoiceNo,
-        'PKG': result.pkg,
-        'WEIGHT': result.weight,
-        'MODE': result.mode,
-        'STATUS': result.status,
-        'DELIVERY DATE': result.deliveryDate,
-      };
-
-      // ✅ Add co-loader columns if any docket has co-loader
-      if (hasAnyCoLoader) {
-        baseData['TRANSPORT NAME'] = result.transportName;
-        baseData['TP DOCKET'] = result.transportDocket;
-      }
-
-      baseData['POD'] = result.pod ? 'View POD' : 'No POD';
-
-      return baseData;
-    });
+    if (searchResults.length === 0) { alert('No data to export'); return; }
 
     const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    let worksheet;
 
-    // Add hyperlinks to POD column
-    const podColumnIndex = hasAnyCoLoader ? 'P' : 'N'; // Adjust based on co-loader columns
-    searchResults.forEach((result, index) => {
-      if (result.pod) {
-        const cellAddress = `${podColumnIndex}${index + 2}`;
-        worksheet[cellAddress].l = { Target: result.pod, Tooltip: 'Click to view POD' };
-      }
-      
-      // Add hyperlinks to Docket No column
-      if (result.docketId) {
-        const docketCellAddress = `C${index + 2}`;
-        const docketUrl = `https://urbun-club.onrender.com/html-to-pdf/${result.docketId}`;
-        worksheet[docketCellAddress].l = { Target: docketUrl, Tooltip: 'Click to view docket details' };
-      }
-    });
-
-    // Set column widths
-    const columnWidths = [
-      { wch: 6 },   // SLNO
-      { wch: 12 },  // DATE
-      { wch: 12 },  // DOCKET NO
-      { wch: 20 },  // CONSIGNEE
-      { wch: 20 },  // CONSIGNOR
-      { wch: 15 },  // FROM
-      { wch: 15 },  // TO
-      { wch: 15 },  // INVOICE NO
-      { wch: 8 },   // PKG
-      { wch: 12 },  // WEIGHT
-      { wch: 10 },  // MODE
-      { wch: 18 },  // STATUS
-      { wch: 14 },  // DELIVERY DATE
-    ];
-
-    // ✅ Add co-loader column widths if present
-    if (hasAnyCoLoader) {
-      columnWidths.push({ wch: 20 }); // TRANSPORT NAME
-      columnWidths.push({ wch: 15 }); // TP DOCKET
+    if (isTPNameMode) {
+      // TP Name mode: 7 co-loader focused columns
+      const excelData = searchResults.map(r => ({
+        'SLNO':        r.slno,
+        'DOCKET NO':   r.docketNo,
+        'TP DOCKET':   r.transportDocket,
+        'TP NAME':     r.transportName,
+        'CHALLAN':     r.challan ? 'View Challan' : '-',
+      }));
+      worksheet = XLSX.utils.json_to_sheet(excelData);
+      searchResults.forEach((r, i) => {
+        if (r.docketId) {
+          const cell = `B${i + 2}`;
+          if (worksheet[cell]) worksheet[cell].l = { Target: `http://localhost:5173/html-to-pdf/${r.docketId}` };
+        }
+        if (r.challan) {
+          const cell = `E${i + 2}`;
+          if (worksheet[cell]) worksheet[cell].l = { Target: r.challan, Tooltip: 'View Challan' };
+        }
+      });
+      worksheet['!cols'] = [
+        { wch: 6 }, { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+      ];
+    } else {
+      // Normal mode: full MIS columns
+      const excelData = searchResults.map(result => {
+        const baseData = {
+          'SLNO': result.slno, 'DATE': result.date, 'DOCKET NO': result.docketNo,
+          'CONSIGNOR': result.consignor, 'CONSIGNEE': result.consignee,
+          'FROM': result.from, 'TO': result.to, 'INVOICE NO': result.invoiceNo,
+          'PKG': result.pkg, 'WEIGHT': result.weight, 'MODE': result.mode,
+          'STATUS': result.status, 'DELIVERY DATE': result.deliveryDate,
+        };
+        if (hasAnyCoLoader) {
+          baseData['TRANSPORT NAME'] = result.transportName;
+          baseData['TP DOCKET'] = result.transportDocket;
+        }
+        baseData['POD'] = result.pod ? 'View POD' : 'No POD';
+        return baseData;
+      });
+      worksheet = XLSX.utils.json_to_sheet(excelData);
+      const podCol = hasAnyCoLoader ? 'P' : 'N';
+      searchResults.forEach((result, index) => {
+        if (result.pod) {
+          const cell = `${podCol}${index + 2}`;
+          if (worksheet[cell]) worksheet[cell].l = { Target: result.pod, Tooltip: 'View POD' };
+        }
+        if (result.docketId) {
+          const cell = `C${index + 2}`;
+          if (worksheet[cell]) worksheet[cell].l = { Target: `http://localhost:5173/html-to-pdf/${result.docketId}` };
+        }
+      });
+      const colWidths = [
+        { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 },
+        { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
+        { wch: 10 }, { wch: 18 }, { wch: 14 },
+      ];
+      if (hasAnyCoLoader) { colWidths.push({ wch: 20 }); colWidths.push({ wch: 15 }); }
+      colWidths.push({ wch: 12 });
+      worksheet['!cols'] = colWidths;
     }
-
-    columnWidths.push({ wch: 12 }); // POD
-
-    worksheet['!cols'] = columnWidths;
 
     XLSX.utils.book_append_sheet(workbook, worksheet, 'MIS Report');
     const fileName = `MISReport_${clientName}_${new Date().toLocaleDateString('en-IN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
-  };
+  };;
 
   // Pagination
   const totalPages = Math.ceil(searchResults.length / rowsPerPage);
@@ -180,6 +168,20 @@ export default function MisReports() {
                       Consignee
                     </label>
                   </div>
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="tpname"
+                      name="clientType"
+                      value="TPName"
+                      checked={clientType === 'TPName'}
+                      onChange={(e) => setClientType(e.target.value)}
+                      className="w-4 h-4 text-orange-500 focus:ring-2 focus:ring-orange-400"
+                    />
+                    <label htmlFor="tpname" className="ml-2 text-sm text-orange-700 cursor-pointer font-semibold">
+                      TP NAME
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -197,7 +199,7 @@ export default function MisReports() {
                       handleSearch();
                     }
                   }}
-                  placeholder={`Enter ${clientType} Name`}
+                  placeholder={isTPNameMode ? 'Enter Transport / TP Name to search' : `Enter ${clientType} Name`}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
@@ -236,11 +238,11 @@ export default function MisReports() {
                 <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                   <div className="text-gray-700 font-semibold">
                     📊 Found {searchResults.length} record{searchResults.length !== 1 ? 's' : ''} for{' '}
-                    <span className="text-blue-600">{clientName}</span>
-                    {hasAnyCoLoader && (
-                      <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
-                        🚛 Includes Co-Loader Data
-                      </span>
+                    <span className={isTPNameMode ? 'text-orange-600' : 'text-blue-600'}>{clientName}</span>
+                    {isTPNameMode ? (
+                      <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">🚛 TP Name View</span>
+                    ) : hasAnyCoLoader && (
+                      <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">🚛 Includes Co-Loader Data</span>
                     )}
                   </div>
                   <button
@@ -263,115 +265,135 @@ export default function MisReports() {
               ) : (
                 <>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      {/* ✅ UPDATED: Table header with conditional co-loader columns */}
-                      <thead className="bg-teal-600 text-white sticky top-0">
-                        <tr>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">SLNO</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DATE</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DOCKET NO</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">CONSIGNEE</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">CONSIGNOR</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">FROM</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">TO</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">INVOICE NO</th>
-                          <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wide">PKG</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">WEIGHT</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">MODE</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">STATUS</th>
-                          <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DELIVERY DATE</th>
-                          {/* ✅ Conditional Co-Loader Columns */}
-                          {hasAnyCoLoader && (
-                            <>
-                              <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide bg-orange-600">TRANSPORT NAME</th>
-                              <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide bg-orange-600">TP DOCKET</th>
-                            </>
-                          )}
-                          <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wide">POD</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentResults.map((result, idx) => (
-                          <tr 
-                            key={idx} 
-                            className={`border-b border-gray-200 ${
-                              idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                            } hover:bg-blue-50 transition-colors`}
-                          >
-                            <td className="px-4 py-3.5 text-gray-800 font-semibold">{result.slno}</td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.date}</td>
-                            <td className="px-4 py-3.5">
-                              {result.docketId ? (
-                                <Link
-                                  to={`/html-to-pdf/${result.docketId}`}
-                                  className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors"
-                                  title="View Docket Details"
-                                >
-                                  {result.docketNo}
-                                </Link>
-                              ) : (
-                                <span className="text-blue-700 font-semibold">{result.docketNo}</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.consignee}</td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.consignor}</td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.from}</td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.to}</td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.invoiceNo}</td>
-                            <td className="px-4 py-3.5 text-center text-gray-800 font-medium">{result.pkg}</td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.weight}</td>
-                            <td className="px-4 py-3.5 text-gray-700 font-medium">{result.mode}</td>
-                            <td className="px-4 py-3.5">
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                result.status === 'Delivered' ? 'bg-green-100 text-green-800' :
-                                result.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-800' :
-                                result.status === 'In Transit' ? 'bg-yellow-100 text-yellow-800' :
-                                result.status === 'Booked' ? 'bg-purple-100 text-purple-800' :
-                                result.status === 'Undelivered' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {result.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3.5 text-gray-700">{result.deliveryDate}</td>
-                            {/* ✅ Conditional Co-Loader Data Columns */}
+                    {isTPNameMode ? (
+                      /* ✅ TP NAME TABLE: DOCKET | TP DOCKET | TP NAME | CHALLAN */
+                      <table className="w-full text-sm">
+                        <thead className="bg-orange-600 text-white sticky top-0">
+                          <tr>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">SLNO</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DOCKET</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">TP DOCKET</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">TP NAME</th>
+                            <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wide">CHALLAN</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {currentResults.map((result, idx) => (
+                            <tr key={idx} className={`border-b border-gray-200 ${idx % 2 === 0 ? 'bg-orange-50' : 'bg-white'} hover:bg-orange-100 transition-colors`}>
+                              <td className="px-4 py-3.5 text-gray-800 font-semibold">{result.slno}</td>
+                              <td className="px-4 py-3.5">
+                                {result.docketId ? (
+                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors">
+                                    {result.docketNo}
+                                  </Link>
+                                ) : (
+                                  <span className="text-blue-700 font-semibold">{result.docketNo}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5 text-gray-700 font-medium">{result.transportDocket}</td>
+                              <td className="px-4 py-3.5 text-orange-700 font-semibold">{result.transportName}</td>
+                              <td className="px-4 py-3.5 text-center">
+                                {result.challan ? (
+                                  <a
+                                    href={result.challan}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-1 text-orange-600 hover:text-orange-800 font-semibold underline transition-colors"
+                                  >
+                                    <ExternalLink size={13} /> View
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      /* ✅ NORMAL MIS TABLE */
+                      <table className="w-full text-sm">
+                        <thead className="bg-teal-600 text-white sticky top-0">
+                          <tr>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">SLNO</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DATE</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DOCKET NO</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">CONSIGNOR</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">CONSIGNEE</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">FROM</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">TO</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">INVOICE NO</th>
+                            <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wide">PKG</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">WEIGHT</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">MODE</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">STATUS</th>
+                            <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DELIVERY DATE</th>
                             {hasAnyCoLoader && (
                               <>
-                                <td className="px-4 py-3.5 text-gray-700 bg-orange-50">
-                                  {result.hasCoLoader ? (
-                                    <span className="font-medium">{result.transportName}</span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3.5 text-gray-700 bg-orange-50">
-                                  {result.hasCoLoader ? (
-                                    <span className="font-medium">{result.transportDocket}</span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
+                                <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide bg-orange-600">TRANSPORT NAME</th>
+                                <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide bg-orange-600">TP DOCKET</th>
                               </>
                             )}
-                            <td className="px-4 py-3.5 text-center">
-                              {result.pod ? (
-                                <a
-                                  href={result.pod}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors"
-                                  title="View Proof of Delivery"
-                                >
-                                  View POD
-                                </a>
-                              ) : (
-                                <span className="text-gray-400 font-medium">-</span>
-                              )}
-                            </td>
+                            <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wide">POD</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {currentResults.map((result, idx) => (
+                            <tr key={idx} className={`border-b border-gray-200 ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50 transition-colors`}>
+                              <td className="px-4 py-3.5 text-gray-800 font-semibold">{result.slno}</td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.date}</td>
+                              <td className="px-4 py-3.5">
+                                {result.docketId ? (
+                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors" title="View Docket Details">
+                                    {result.docketNo}
+                                  </Link>
+                                ) : (
+                                  <span className="text-blue-700 font-semibold">{result.docketNo}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.consignor}</td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.consignee}</td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.from}</td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.to}</td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.invoiceNo}</td>
+                              <td className="px-4 py-3.5 text-center text-gray-800 font-medium">{result.pkg}</td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.weight}</td>
+                              <td className="px-4 py-3.5 text-gray-700 font-medium">{result.mode}</td>
+                              <td className="px-4 py-3.5">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  result.status === 'Delivered'        ? 'bg-green-100 text-green-800' :
+                                  result.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-800' :
+                                  result.status === 'In Transit'       ? 'bg-yellow-100 text-yellow-800' :
+                                  result.status === 'Booked'           ? 'bg-purple-100 text-purple-800' :
+                                  result.status === 'Undelivered'      ? 'bg-red-100 text-red-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>{result.status}</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-gray-700">{result.deliveryDate}</td>
+                              {hasAnyCoLoader && (
+                                <>
+                                  <td className="px-4 py-3.5 text-gray-700 bg-orange-50">
+                                    {result.hasCoLoader ? <span className="font-medium">{result.transportName}</span> : <span className="text-gray-400">-</span>}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-gray-700 bg-orange-50">
+                                    {result.hasCoLoader ? <span className="font-medium">{result.transportDocket}</span> : <span className="text-gray-400">-</span>}
+                                  </td>
+                                </>
+                              )}
+                              <td className="px-4 py-3.5 text-center">
+                                {result.pod ? (
+                                  <a href={result.pod} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors">
+                                    View POD
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-400 font-medium">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
 
                   {/* Pagination */}
