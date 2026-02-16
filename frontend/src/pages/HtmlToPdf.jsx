@@ -90,11 +90,11 @@ export default function HtmlToPdf() {
 
         {/* DATE - Docket Creation Date */}
         <div className="absolute" style={{top: '192px', left: '893px'}}>
-          <span className="text-[17px] font-semibold">{formatDate(docket?.createdAt)}</span>
+          <span className="text-[17px] font-semibold">{formatDate(docket?.bookingDate)}</span>
         </div>
 
         <div className="absolute" style={{top: '226px', left: '489px'}}>
-          <span className="text-[10px] font-semibold">{formatDate(docket?.createdAt)}</span>
+          <span className="text-[10px] font-semibold">{formatDate(docket?.bookingDate)}</span>
         </div>
 
         {/* TRUCK NO. */}
