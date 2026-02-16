@@ -247,7 +247,7 @@ export const createDocketWithDetails = async (req, res) => {
         bookingInfo: savedBookingInfo._id,
         consignor: consignorId,
         consignee: consigneeId,
-        eWayBillExpiry: eWayBillExpiry, // ✅ NEW: Store expiry date
+        eWayBillExpiry: eWayBillExpiry, // ✅ NEW: Store expiry date h
       });
 
       const savedInvoice = await invoiceData.save();
