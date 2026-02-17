@@ -1,7 +1,7 @@
 // src/pages/ViewDocket.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { docketAPI, coLoaderAPI } from "../utils/api";
+import { docketAPI, coLoaderAPI, activityAPI } from "../utils/api";
 
 // ✅ Compact Info Field
 const InfoField = ({ label, value }) => (
@@ -128,8 +128,7 @@ export default function ViewDocket() {
 
         // ✅ Fetch POD from activities
         try {
-          const actRes = await fetch(`http://localhost:5000/api/v1/activities/docket/${id}`);
-          const actData = await actRes.json();
+          const actData = await activityAPI.getByDocket(id);
           if (actData.success && Array.isArray(actData.data)) {
             const withPod = actData.data.find(a => a.podImage?.url);
             if (withPod) setPodUrl(withPod.podImage.url);
