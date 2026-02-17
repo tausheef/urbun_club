@@ -11,22 +11,22 @@ import {
 
 const router = express.Router();
 
-// GET - Get all E-way Bills (expired + expiring soon + valid)
+// GET - All E-way Bills (expired + expiring soon + valid)
 router.get("/expired", getExpiredEwayBills);
 
-// GET - Get count of expired E-way Bills
+// GET - Count of expired E-way Bills (badge)
 router.get("/expired/count", getExpiredCount);
 
-// GET - Get count of expiring soon E-way Bills (lightweight - for badge)
+// ✅ IMPORTANT: /expiring-soon/count MUST come BEFORE /expiring-soon
 router.get("/expiring-soon/count", getExpiringSoonCount);
 
-// GET - Get E-way Bills expiring soon with full data
+// GET - Full expiring soon data
 router.get("/expiring-soon", getExpiringSoon);
 
 // PATCH - Update E-way Bill expiry date
 router.patch("/:id/update-expiry", updateEwayBillExpiry);
 
-// DELETE - Clear E-way Bill from invoice (delivered dockets)
+// DELETE - Clear E-way Bill (delivered dockets)
 router.delete("/:id/clear", clearEwayBill);
 
 export default router;
