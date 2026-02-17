@@ -61,7 +61,7 @@ export default function Navbar() {
                 <img
                   src="/logo.png"
                   alt="Urban Club Logo"
-                  className="w-10 h-10 rounded object-contain bg-white p-1"
+                  className="w-20 h-10 rounded object-contain bg-white p-1"
                 />
               </div>
               <span className="font-bold text-gray-800 text-lg hidden sm:inline">URBAN CLUB</span> 
