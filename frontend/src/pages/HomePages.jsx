@@ -14,6 +14,7 @@ export default function HomePage() {
 
   // E-way Bill expiry notification state
   const [expiredCount, setExpiredCount] = useState(0);
+  const [expiringSoonCount, setExpiringSoonCount] = useState(0);
 
   // Dynamic counts for status pages
   const [deliveredCount, setDeliveredCount] = useState(0);
@@ -38,13 +39,19 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch expired E-way Bills count
+  // Fetch expired + expiring soon E-way Bills count
   const fetchExpiredCount = async () => {
     try {
-      const result = await ewayBillAPI.getExpiredCount();
-      
-      if (result.success) {
-        setExpiredCount(result.count);
+      const [expiredResult, expiringSoonResult] = await Promise.all([
+        ewayBillAPI.getExpiredCount(),
+        ewayBillAPI.getExpiringSoonCount(),
+      ]);
+
+      if (expiredResult.success) {
+        setExpiredCount(expiredResult.count);
+      }
+      if (expiringSoonResult.success) {
+        setExpiringSoonCount(expiringSoonResult.count);
       }
     } catch (error) {
       console.error("Error fetching expired count:", error);
@@ -273,27 +280,34 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* E-Way Bill Validity Notification (Only shows if expired count > 0) */}
-      {expiredCount > 0 && (
+      {/* E-Way Bill Validity Notification (Shows if expiring soon > 0 or expired > 0) */}
+      {(expiringSoonCount > 0 || expiredCount > 0) && (
         <button
           onClick={handleExpiredClick}
           className="fixed bottom-6 right-6 z-50 bg-gray-800 hover:bg-gray-900 text-white rounded-lg shadow-2xl p-4 transition-all hover:scale-105 flex flex-col items-center gap-1 min-w-[120px]"
-          title="Click to view expired E-way Bills"
+          title="Click to view E-way Bill status"
         >
-          {/* Badge with count */}
+          {/* Badge with expiring soon count */}
           <div className="relative">
-            <span className="text-4xl font-bold text-red-500">-{expiredCount}</span>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+            <span className="text-4xl font-bold text-yellow-400">{expiringSoonCount}</span>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
           </div>
           
           {/* Label */}
           <div className="text-center">
             <div className="text-xs font-semibold">E-Way Bill</div>
-            <div className="text-xs">Validity</div>
+            <div className="text-xs text-yellow-300">Expiring Soon</div>
           </div>
 
+          {/* Show expired count as sub-label if any */}
+          {expiredCount > 0 && (
+            <div className="text-xs text-red-400 font-medium">
+              +{expiredCount} expired
+            </div>
+          )}
+
           {/* Pulse animation */}
-          <div className="absolute inset-0 rounded-lg border-2 border-red-500 animate-ping opacity-20"></div>
+          <div className="absolute inset-0 rounded-lg border-2 border-yellow-400 animate-ping opacity-20"></div>
         </button>
       )}
 

@@ -229,7 +229,7 @@ export const createDocketWithDetails = async (req, res) => {
       let eWayBillExpiry = null;
       if (eWayBill && distance > 0) {
         const validityDays = calculateEwayBillValidity(distance);
-        eWayBillExpiry = calculateExpiryDate(savedDocket.createdAt, validityDays);
+        eWayBillExpiry = calculateExpiryDate(savedDocket.bookingDate, validityDays);
         console.log(`E-way Bill Expiry: ${eWayBillExpiry} (${validityDays} days validity for ${distance} km)`);
       }
 

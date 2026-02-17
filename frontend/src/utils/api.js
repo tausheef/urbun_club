@@ -170,6 +170,24 @@ export const ewayBillAPI = {
     const response = await axiosInstance.get("/ewaybills/expired/count");
     return response.data;
   },
+
+  // Get expiring soon count (within 3 days)
+  getExpiringSoonCount: async () => {
+    const response = await axiosInstance.get("/ewaybills/expiring-soon");
+    return response.data;
+  },
+
+  // Update E-way Bill expiry date
+  updateExpiry: async (invoiceId, eWayBillExpiry) => {
+    const response = await axiosInstance.patch(`/ewaybills/${invoiceId}/update-expiry`, { eWayBillExpiry });
+    return response.data;
+  },
+
+  // Clear E-way Bill from invoice (for delivered dockets)
+  clearEwayBill: async (invoiceId) => {
+    const response = await axiosInstance.delete(`/ewaybills/${invoiceId}/clear`);
+    return response.data;
+  },
 };
 
 // ==================== ACTIVITY APIs ====================
