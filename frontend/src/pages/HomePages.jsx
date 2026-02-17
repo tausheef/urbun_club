@@ -41,20 +41,28 @@ export default function HomePage() {
 
   // Fetch expired + expiring soon E-way Bills count
   const fetchExpiredCount = async () => {
+    // Fetch separately so one failure doesn't block the other
     try {
-      const [expiredResult, expiringSoonResult] = await Promise.all([
-        ewayBillAPI.getExpiredCount(),
-        ewayBillAPI.getExpiringSoonCount(),
-      ]);
-
-      if (expiredResult.success) {
-        setExpiredCount(expiredResult.count);
-      }
-      if (expiringSoonResult.success) {
-        setExpiringSoonCount(expiringSoonResult.count);
+      const expiredResult = await ewayBillAPI.getExpiredCount();
+      if (expiredResult?.success) {
+        setExpiredCount(expiredResult.count ?? 0);
       }
     } catch (error) {
       console.error("Error fetching expired count:", error);
+    }
+
+    try {
+      const expiringSoonResult = await ewayBillAPI.getExpiringSoonCount();
+      // Handle both {success, count} and {success, data:[...]} response shapes
+      if (expiringSoonResult?.success) {
+        const count =
+          expiringSoonResult.count ??
+          expiringSoonResult.data?.length ??
+          0;
+        setExpiringSoonCount(count);
+      }
+    } catch (error) {
+      console.error("Error fetching expiring soon count:", error);
     }
   };
 

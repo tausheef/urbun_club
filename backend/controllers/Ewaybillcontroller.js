@@ -206,6 +206,38 @@ export const clearEwayBill = async (req, res) => {
   }
 };
 
+/**
+ * Get count of expiring soon E-way Bills (for notification badge)
+ */
+export const getExpiringSoonCount = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const threeDaysLater = new Date(today);
+    threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+
+    const count = await Invoice.countDocuments({
+      eWayBill: { $exists: true, $ne: null, $ne: "" },
+      eWayBillExpiry: {
+        $gte: today,
+        $lte: threeDaysLater,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      count: count,
+    });
+  } catch (error) {
+    console.error("Error counting expiring soon E-way Bills:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to count expiring soon E-way Bills",
+    });
+  }
+};
+
 export const getExpiringSoon = async (req, res) => {
   try {
     const today = new Date();

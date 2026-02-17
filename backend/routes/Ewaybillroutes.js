@@ -3,6 +3,7 @@ import express from "express";
 import {
   getExpiredEwayBills,
   getExpiredCount,
+  getExpiringSoonCount,
   getExpiringSoon,
   updateEwayBillExpiry,
   clearEwayBill,
@@ -16,7 +17,10 @@ router.get("/expired", getExpiredEwayBills);
 // GET - Get count of expired E-way Bills
 router.get("/expired/count", getExpiredCount);
 
-// GET - Get E-way Bills expiring soon (within 3 days)
+// GET - Get count of expiring soon E-way Bills (lightweight - for badge)
+router.get("/expiring-soon/count", getExpiringSoonCount);
+
+// GET - Get E-way Bills expiring soon with full data
 router.get("/expiring-soon", getExpiringSoon);
 
 // PATCH - Update E-way Bill expiry date

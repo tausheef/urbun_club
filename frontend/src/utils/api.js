@@ -173,7 +173,7 @@ export const ewayBillAPI = {
 
   // Get expiring soon count (within 3 days)
   getExpiringSoonCount: async () => {
-    const response = await axiosInstance.get("/ewaybills/expiring-soon");
+    const response = await axiosInstance.get("/ewaybills/expiring-soon/count");
     return response.data;
   },
 
@@ -268,6 +268,22 @@ export const activityAPI = {
   // Delete activity
   delete: async (id) => {
     const response = await axiosInstance.delete(`/activities/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== DELIVERY TRACKER APIs ====================
+
+export const deliveryTrackerAPI = {
+  // Get all overdue + delivering soon dockets
+  getAll: async () => {
+    const response = await axiosInstance.get("/delivery-tracker");
+    return response.data;
+  },
+
+  // Get overdue count (for notification badge)
+  getOverdueCount: async () => {
+    const response = await axiosInstance.get("/delivery-tracker/overdue-count");
     return response.data;
   },
 };
