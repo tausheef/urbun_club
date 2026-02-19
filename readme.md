@@ -84,7 +84,7 @@ The system supports **role-based access control**, real-time **activity tracking
 - Cloudinary CDN storage with public URL access
 - Missing POD tracker with statistics
 
-### 🚛 Co-Loader Management
+### 🚛 Co-Loader Management System
 - Link external transport companies (co-loaders) to existing dockets
 - One-to-one docket-to-co-loader relationship enforced
 - Fields: Transport Name, Transport Docket No, Challan image
