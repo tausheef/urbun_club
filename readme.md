@@ -49,7 +49,7 @@ The system supports **role-based access control**, real-time **activity tracking
 | **State Management** | React Context API |
 | **HTTP Client** | Axios |
 | **Export** | SheetJS (XLSX) |
-| **PDF** | HTML to PDF (custom renderer) |
+| **PDF** | HTML to PDF (custom render) |
 
 ---
 
