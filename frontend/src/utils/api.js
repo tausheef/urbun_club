@@ -73,7 +73,7 @@ export const docketAPI = {
     return response.data;
   },
 
-  // ✅ NEW: Get next docket number for auto-generation
+  // Get next docket number for auto-generation
   getNextNumber: async () => {
     const response = await axiosInstance.get("/dockets/next-number");
     return response.data;
@@ -118,6 +118,40 @@ export const docketAPI = {
   // Delete docket
   delete: async (id) => {
     const response = await axiosInstance.delete(`/dockets/${id}`);
+    return response.data;
+  },
+
+  // ✅ Upload MIS PDF (FormData - multipart)
+  uploadMISPdf: async (id, pdfBlob, onUploadProgress) => {
+    const formData = new FormData();
+    formData.append("pdf", pdfBlob, `docket-${id}.pdf`);
+
+    const response = await axiosInstance.post(
+      `/dockets/${id}/upload-mis-pdf-file`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 120000,
+        onUploadProgress,
+      }
+    );
+    return response.data;
+  },
+
+  // ✅ Delete MIS PDF
+  deleteMISPdf: async (id) => {
+    const response = await axiosInstance.delete(`/dockets/${id}/mis-pdf`);
+    return response.data;
+  },
+
+  // ✅ Save ImgBB MIS image URL to docket
+  saveMisImage: async (id, misImageUrl, misImageDeleteHash) => {
+    const response = await axiosInstance.patch(`/dockets/${id}/mis-image`, {
+      misImageUrl,
+      misImageDeleteHash,
+    });
     return response.data;
   },
 };
@@ -339,7 +373,7 @@ export const coLoaderAPI = {
       formData.append("transportDocket", coLoaderData.transportDocket);
     }
     if (coLoaderData.challan) {
-      formData.append("challan", coLoaderData.challan); // New file (optional)
+      formData.append("challan", coLoaderData.challan);
     }
 
     const response = await axiosInstance.put(`/coloaders/${id}`, formData, {

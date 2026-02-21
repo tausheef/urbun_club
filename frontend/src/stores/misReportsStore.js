@@ -151,6 +151,8 @@ export const useMisReportsStore = create((set, get) => ({
           transportName: item.transportName || '-',
           // challan is stored as { url, publicId } — use the url
           challan: item.challan?.url || null,
+          // MIS image URL — if set, docket link goes here instead of /html-to-pdf
+          misImageUrl: item.docketId?.misImageUrl || null,
         }));
 
         set({ searchResults: transformedResults, loading: false });
@@ -235,6 +237,8 @@ export const useMisReportsStore = create((set, get) => ({
               hasCoLoader: hasCoLoader,
               transportName: coLoaderData?.transportName || '-',
               transportDocket: coLoaderData?.transportDocket || '-',
+              // MIS image URL — if set, docket link goes here instead of /html-to-pdf
+              misImageUrl: item.docket?.misImageUrl || null,
             };
           })
         );
@@ -254,4 +258,4 @@ export const useMisReportsStore = create((set, get) => ({
   clearSearch: () => {
     set({ searchResults: [], clientName: '', error: null });
   },
-})); 
+}));

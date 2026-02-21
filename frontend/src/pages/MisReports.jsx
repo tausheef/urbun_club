@@ -57,7 +57,11 @@ export default function MisReports() {
       searchResults.forEach((r, i) => {
         if (r.docketId) {
           const cell = `B${i + 2}`;
-          if (worksheet[cell]) worksheet[cell].l = { Target: `${window.location.origin}/html-to-pdf/${r.docketId}` };
+          // Use misImageUrl if available, otherwise link to lorry receipt page
+          const docketTarget = r.misImageUrl
+            ? r.misImageUrl
+            : `${window.location.origin}/html-to-pdf/${r.docketId}`;
+          if (worksheet[cell]) worksheet[cell].l = { Target: docketTarget };
         }
         if (r.challan) {
           const cell = `E${i + 2}`;
@@ -93,7 +97,11 @@ export default function MisReports() {
         }
         if (result.docketId) {
           const cell = `C${index + 2}`;
-          if (worksheet[cell]) worksheet[cell].l = { Target: `${window.location.origin}/html-to-pdf/${result.docketId}` };
+          // Use misImageUrl if available, otherwise link to lorry receipt page
+          const docketTarget = result.misImageUrl
+            ? result.misImageUrl
+            : `${window.location.origin}/html-to-pdf/${result.docketId}`;
+          if (worksheet[cell]) worksheet[cell].l = { Target: docketTarget };
         }
       });
       const colWidths = [
@@ -282,8 +290,21 @@ export default function MisReports() {
                             <tr key={idx} className={`border-b border-gray-200 ${idx % 2 === 0 ? 'bg-orange-50' : 'bg-white'} hover:bg-orange-100 transition-colors`}>
                               <td className="px-4 py-3.5 text-gray-800 font-semibold">{result.slno}</td>
                               <td className="px-4 py-3.5">
-                                {result.docketId ? (
-                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors">
+                                {result.misImageUrl ? (
+                                  // MIS image uploaded → open ImgBB image directly
+                                  <a
+                                    href={result.misImageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-purple-700 hover:text-purple-900 font-semibold underline transition-colors flex items-center gap-1"
+                                    title="View MIS Receipt"
+                                  >
+                                    {result.docketNo}
+                                    <ExternalLink size={12} />
+                                  </a>
+                                ) : result.docketId ? (
+                                  // No MIS image → open lorry receipt page
+                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors" title="View Lorry Receipt">
                                     {result.docketNo}
                                   </Link>
                                 ) : (
@@ -343,8 +364,21 @@ export default function MisReports() {
                               <td className="px-4 py-3.5 text-gray-800 font-semibold">{result.slno}</td>
                               <td className="px-4 py-3.5 text-gray-700">{result.date}</td>
                               <td className="px-4 py-3.5">
-                                {result.docketId ? (
-                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors" title="View Docket Details">
+                                {result.misImageUrl ? (
+                                  // MIS image uploaded → open ImgBB image directly
+                                  <a
+                                    href={result.misImageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-purple-700 hover:text-purple-900 font-semibold underline transition-colors flex items-center gap-1"
+                                    title="View MIS Receipt"
+                                  >
+                                    {result.docketNo}
+                                    <ExternalLink size={12} />
+                                  </a>
+                                ) : result.docketId ? (
+                                  // No MIS image → open lorry receipt page
+                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors" title="View Lorry Receipt">
                                     {result.docketNo}
                                   </Link>
                                 ) : (

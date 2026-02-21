@@ -7,6 +7,10 @@ import Consignee from "../models/Consignee.js";
 import DocketCounter from "../models/DocketCounter.js";
 import { calculateDistance, calculateEwayBillValidity, calculateExpiryDate } from "../utils/Distancecalculator.js"; // ✅ NEW
 
+import { unlinkSync, existsSync, statSync, mkdirSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
 // Helper function to parse DD/MM/YYYY format OR ISO date strings
 const parseDate = (dateString) => {
   if (!dateString) return null;
@@ -29,6 +33,125 @@ const parseDate = (dateString) => {
   const date = new Date(dateString);
   return isNaN(date.getTime()) ? null : date;
 };
+
+// ✅ Generate PDF for lorry receipt using Puppeteer (Node.js only, no Python)
+export const generateLorryReceiptPDF = async (req, res) => {
+  const { docketId } = req.params;
+  const { showSignature } = req.query;
+  let outputFile = null;
+
+  console.log('📄 PDF Generation Request:', { docketId, showSignature });
+
+  try {
+    // 1. Fetch docket data
+    const docket = await Docket.findById(docketId)
+      .populate("consignor")
+      .populate("consignee")
+      .lean();
+
+    if (!docket) {
+      return res.status(404).json({ success: false, message: "Docket not found" });
+    }
+
+    const bookingInfo = await BookingInfo.findOne({ docketId: docket._id }).lean();
+    const invoice    = await Invoice.findOne({ docket: docket._id }).lean();
+
+    const docketData = {
+      docket: {
+        docketNo:        docket.docketNo,
+        bookingDate:     docket.bookingDate,
+        destinationCity: docket.destinationCity,
+        expectedDelivery:docket.expectedDelivery,
+        dimensions:      docket.dimensions,
+        consignor: {
+          consignorName: docket.consignor?.consignorName,
+          address:       docket.consignor?.address,
+          city:          docket.consignor?.city,
+          state:         docket.consignor?.state,
+          pin:           docket.consignor?.pin,
+          phone:         docket.consignor?.phone,
+        },
+        consignee: {
+          consigneeName: docket.consignee?.consigneeName,
+          address:       docket.consignee?.address,
+          city:          docket.consignee?.city,
+          state:         docket.consignee?.state,
+          pin:           docket.consignee?.pin,
+          phone:         docket.consignee?.phone,
+        },
+      },
+      bookingInfo: {
+        originCity:   bookingInfo?.originCity,
+        deliveryMode: bookingInfo?.deliveryMode,
+      },
+      invoice: {
+        invoiceNo:         invoice?.invoiceNo,
+        grossInvoiceValue: invoice?.grossInvoiceValue,
+        packet:            invoice?.packet,
+        weight:            invoice?.weight,
+        itemDescription:   invoice?.itemDescription,
+      },
+    };
+
+    // 2. File paths
+    const outputDir      = path.join(__dirname, '..', 'output');
+    const templatePath   = path.join(__dirname, '..', 'assets', 'lorry_receipt_template.png');
+    const signaturePath  = path.join(__dirname, '..', 'assets', 'sign.png');
+    const pdfGenerator   = path.join(__dirname, '..', 'scripts', 'generateLorryReceiptPDF.js');
+
+    mkdirSync(outputDir, { recursive: true });
+
+    const jobId  = uuidv4();
+    outputFile   = path.join(outputDir, `lorry_receipt_${jobId}.pdf`);
+
+    // 3. Import and run the puppeteer generator directly (same Node process)
+    const { generatePDF } = await import(pdfGenerator);
+
+    await generatePDF(
+      docketData,
+      templatePath,
+      outputFile,
+      signaturePath,
+      showSignature === 'true'
+    );
+
+    // 4. Verify output
+    if (!existsSync(outputFile)) {
+      throw new Error('PDF file was not created');
+    }
+    const fileSize = statSync(outputFile).size;
+    if (fileSize === 0) {
+      throw new Error('PDF file is empty');
+    }
+
+    console.log('✅ PDF created! Size:', fileSize, 'bytes');
+
+    // 5. Send file
+    const docketNo = docketData.docket?.docketNo || 'receipt';
+    const filename = `lorry_receipt_${docketNo}.pdf`;
+
+    res.sendFile(outputFile, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      }
+    }, (err) => {
+      if (existsSync(outputFile)) unlinkSync(outputFile);
+      if (err) console.error('❌ Error sending file:', err);
+      else     console.log('✅ PDF sent successfully!');
+    });
+
+  } catch (error) {
+    console.error('❌ PDF generation error:', error.message);
+    if (outputFile && existsSync(outputFile)) unlinkSync(outputFile);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+};
+
+
+
 
 // ✅ NEW: Get next auto-generated docket number
 export const getNextDocketNumber = async (req, res) => {
@@ -881,5 +1004,38 @@ export const getRTODockets = async (req, res) => {
       message: "Error fetching RTO dockets",
       error: error.message,
     });
+  }
+};
+// ── PATCH /api/v1/dockets/:id/mis-image ──
+// Save ImgBB image URL to docket after successful upload
+export const saveMisImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { misImageUrl, misImageDeleteHash } = req.body;
+
+    if (!misImageUrl) {
+      return res.status(400).json({ success: false, message: "misImageUrl is required" });
+    }
+
+    const docket = await Docket.findByIdAndUpdate(
+      id,
+      { misImageUrl, misImageDeleteHash: misImageDeleteHash || null },
+      { new: true }
+    );
+
+    if (!docket) {
+      return res.status(404).json({ success: false, message: "Docket not found" });
+    }
+
+    console.log(`✅ MIS image saved for docket ${docket.docketNo}:`, misImageUrl);
+
+    res.status(200).json({
+      success: true,
+      message: "MIS image URL saved successfully",
+      data: { misImageUrl: docket.misImageUrl, misImageDeleteHash: docket.misImageDeleteHash },
+    });
+  } catch (error) {
+    console.error("❌ Error saving MIS image URL:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
