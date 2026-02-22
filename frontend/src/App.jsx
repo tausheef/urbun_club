@@ -15,6 +15,7 @@ import ViewDocket from './pages/ViewDocket';
 import HtmlToPdf from './pages/HtmlToPdf';
 import UpdateActivity from './pages/UpdateActivity';
 import ExpiredEwayBills from './pages/ExpiredEwayBills';
+import DeliveryTracker from './components/DeliveryTracker';
 
 // Auth Pages
 import Login from './pages/Login';
@@ -141,6 +142,18 @@ export default function App() {
               <ProtectedRoute>
                 <LayoutWithSidebar>
                   <ExpiredEwayBills />
+                </LayoutWithSidebar>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Delivery Tracker */}
+          <Route
+            path="/delivery-tracker"
+            element={
+              <ProtectedRoute>
+                <LayoutWithSidebar>
+                  <DeliveryTracker />
                 </LayoutWithSidebar>
               </ProtectedRoute>
             }

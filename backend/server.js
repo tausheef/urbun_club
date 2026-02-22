@@ -16,6 +16,7 @@ import activityRoutes from "./routes/ActivityRoutes.js"; // ✅ Capital A
 import ewayBillRoutes from "./routes/Ewaybillroutes.js"; // ✅ Fixed: Capital E, lowercase w-b-r
 import authRoutes from "./routes/AuthRoutes.js"; // ✅ Capital A
 import coLoaderRoutes from "./routes/coLoaderRoutes.js"; // ✅ Add co-loader routes
+import deliveryTrackerRoutes from "./routes/Deliverytrackerroutes.js"; // ✅ NEW: Delivery Tracker
 
 import path from "path";
 
@@ -53,6 +54,7 @@ app.use("/api/v1/activities", activityRoutes);
 app.use("/api/v1/ewaybills", ewayBillRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/coloaders", coLoaderRoutes); // ✅ Mount co-loader routes
+app.use("/api/v1/delivery-tracker", deliveryTrackerRoutes); // ✅ NEW: Mount delivery tracker routes
 
 // Production setup - serve static files if needed
 if (process.env.NODE_ENV === "production") {

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Menu, X, LogOut, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronDown, ChevronRight, Menu, X, LogOut, Lock, Truck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { deliveryTrackerAPI } from '../utils/api';
 
 export default function Sidebar() {
   const [expandedMenus, setExpandedMenus] = useState({
@@ -15,6 +16,31 @@ export default function Sidebar() {
   const { logout, user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  // ✅ NEW: Delivery tracker counts
+  const [deliveringSoonCount, setDeliveringSoonCount] = useState(0);
+  const [overdueCount, setOverdueCount] = useState(0);
+
+  // ✅ NEW: Fetch overdue + delivering soon counts for sidebar badge
+  useEffect(() => {
+    fetchDeliveryTrackerCounts();
+
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchDeliveryTrackerCounts, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchDeliveryTrackerCounts = async () => {
+    try {
+      const result = await deliveryTrackerAPI.getAll();
+      if (result?.success && result?.summary) {
+        setDeliveringSoonCount(result.summary.deliveringSoon ?? 0);
+        setOverdueCount(result.summary.overdue ?? 0);
+      }
+    } catch (error) {
+      console.error("Error fetching delivery tracker counts:", error);
+    }
+  };
+
   const toggleMenu = (menu) => {
     setExpandedMenus(prev => ({
       ...prev,
@@ -22,7 +48,6 @@ export default function Sidebar() {
     }));
   };
 
-  // ✅ UPDATED: Restructured menu items
   const menuItems = {
     docket: {
       label: '📋 DOCKET MODULE',
@@ -46,7 +71,6 @@ export default function Sidebar() {
       icon: ChevronDown,
       items: [
         { name: 'CO-LOADER ENTRY', path: '/coloader-entry', adminOnly: false },
-       // { name: 'CO-LOADER MODIFY', path: '/coloader-modify', adminOnly: true },
         { name: 'CO-LOADER BOOKINGS', path: '/coloader-bookings', adminOnly: false },
       ]
     },
@@ -65,7 +89,6 @@ export default function Sidebar() {
     }
   };
 
-  // Handle menu item click with admin check
   const handleMenuItemClick = (item) => {
     if (item.adminOnly && !isAdmin()) {
       alert('This feature is only accessible to administrators.');
@@ -75,6 +98,9 @@ export default function Sidebar() {
       navigate(item.path);
     }
   };
+
+  // ✅ Show badge only if there's something to show
+  const showDeliveryBadge = deliveringSoonCount > 0 || overdueCount > 0;
 
   return (
     <div className="flex h-screen bg-gray-900">
@@ -109,7 +135,6 @@ export default function Sidebar() {
         <nav className="p-2 space-y-1 flex-grow">
           {Object.entries(menuItems).map(([key, menu]) => (
             <div key={key}>
-              {/* ✅ If menu has direct path (no children), make it a link */}
               {menu.path ? (
                 <Link
                   to={menu.path}
@@ -121,7 +146,6 @@ export default function Sidebar() {
                   </span>
                 </Link>
               ) : (
-                // ✅ If menu has children, make it expandable
                 <>
                   <button
                     onClick={() => toggleMenu(key)}
@@ -134,7 +158,6 @@ export default function Sidebar() {
                     {sidebarOpen && (expandedMenus[key] ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
                   </button>
 
-                  {/* ✅ UPDATED: Simplified submenu (direct items, no nested subItems) */}
                   {expandedMenus[key] && sidebarOpen && menu.items.length > 0 && (
                     <div className="ml-4 space-y-1 mt-1">
                       {menu.items.map((item, idx) => (
@@ -163,6 +186,84 @@ export default function Sidebar() {
             </div>
           ))}
         </nav>
+
+        {/* ✅ NEW: Delivery Tracker Popup Badge — sits above logout, z-index higher than menu */}
+        {showDeliveryBadge && (
+          <div className="px-2 pb-2 relative z-50">
+            <button
+              onClick={() => navigate('/delivery-tracker')}
+              className={`
+                w-full rounded-lg border border-orange-500/40 bg-gradient-to-br from-gray-700 to-gray-800
+                hover:from-orange-900/60 hover:to-gray-800
+                transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-orange-900/30
+                relative overflow-hidden group
+                ${sidebarOpen ? 'p-3' : 'p-2'}
+              `}
+              title="View Delivery Tracker"
+            >
+              {/* Pulse glow effect on the border */}
+              <div className="absolute inset-0 rounded-lg border border-orange-400/20 animate-pulse pointer-events-none" />
+
+              {sidebarOpen ? (
+                // ✅ Expanded sidebar view
+                <div className="flex items-center gap-3">
+                  {/* Truck icon with pulsing dot */}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                      <Truck size={18} className="text-orange-400" />
+                    </div>
+                    {overdueCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
+                    )}
+                    {overdueCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
+                    )}
+                  </div>
+
+                  {/* Text content */}
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="text-xs font-semibold text-gray-300 group-hover:text-white transition-colors truncate">
+                      Delivery Tracker
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      {deliveringSoonCount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs text-yellow-400 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block" />
+                          {deliveringSoonCount} Soon
+                        </span>
+                      )}
+                      {overdueCount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs text-red-400 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+                          {overdueCount} Overdue
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Arrow */}
+                  <ChevronRight size={14} className="text-gray-500 group-hover:text-orange-400 transition-colors flex-shrink-0" />
+                </div>
+              ) : (
+                // ✅ Collapsed sidebar view — just icon + count badge
+                <div className="flex flex-col items-center gap-1 relative">
+                  <div className="relative">
+                    <Truck size={20} className="text-orange-400" />
+                    {overdueCount > 0 && (
+                      <>
+                        <span className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
+                        <span className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full" />
+                      </>
+                    )}
+                  </div>
+                  {deliveringSoonCount > 0 && (
+                    <span className="text-xs font-bold text-yellow-400 leading-none">{deliveringSoonCount}</span>
+                  )}
+                </div>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Logout Button at Bottom */}
         <div className="p-2 border-t border-gray-700">
