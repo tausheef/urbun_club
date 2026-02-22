@@ -333,7 +333,7 @@ export default function DeliveryTracker() {
                           <td className="px-4 py-3 whitespace-nowrap">
                             <button
                               onClick={() =>
-                                navigate(`/view-docket/${docket._id}`)
+                                navigate(`/update-activity/${docket._id}`)
                               }
                               className="text-blue-600 hover:text-blue-800 text-sm font-medium underline underline-offset-2"
                             >
