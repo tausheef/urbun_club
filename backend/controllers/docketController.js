@@ -5,7 +5,7 @@ import Invoice from "../models/Invoice.js";
 import Consignor from "../models/Consignor.js";
 import Consignee from "../models/Consignee.js";
 import DocketCounter from "../models/DocketCounter.js";
-import { calculateDistance, calculateEwayBillValidity, calculateExpiryDate } from "../utils/Distancecalculator.js"; // ✅ NEW
+// ✅ REMOVED: No auto-calculations needed - distance and expiry are manual inputs
 
 import { unlinkSync, existsSync, statSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -306,12 +306,8 @@ export const createDocketWithDetails = async (req, res) => {
         }))
       : [];
 
-    // ✅ NEW: Calculate distance between origin and destination
-    let distance = 0;
-    if (originCity && destinationCity) {
-      distance = await calculateDistance(originCity, destinationCity);
-      console.log(`Distance calculated: ${originCity} to ${destinationCity} = ${distance} km`);
-    }
+    // ✅ MANUAL: User enters actual road distance (not calculated)
+    const distance = parseFloat(req.body.distance) || 0;
 
     // 3. Create Docket with Consignor, Consignee references and Dimensions array
     const docketData = new Docket({
@@ -348,13 +344,8 @@ export const createDocketWithDetails = async (req, res) => {
     // 5. Create Invoice
     let invoiceId = null;
     if (invNo) {
-      // ✅ NEW: Calculate E-way Bill expiry date (if eWayBill exists)
-      let eWayBillExpiry = null;
-      if (eWayBill && distance > 0) {
-        const validityDays = calculateEwayBillValidity(distance);
-        eWayBillExpiry = calculateExpiryDate(savedDocket.bookingDate, validityDays);
-        console.log(`E-way Bill Expiry: ${eWayBillExpiry} (${validityDays} days validity for ${distance} km)`);
-      }
+      // ✅ MANUAL: User enters E-way Bill expiry date (not calculated)
+      const eWayBillExpiry = parseDate(req.body.eWayBillExpiry);
 
       const invoiceData = new Invoice({
         eWayBill,
@@ -483,6 +474,7 @@ export const updateDocketWithDetails = async (req, res) => {
     if (updateData.location !== undefined) docketUpdates.location = updateData.location;
     if (updateData.postalCode !== undefined) docketUpdates.postalCode = updateData.postalCode;
     if (updateData.expectedDelivery !== undefined) docketUpdates.expectedDelivery = parseDate(updateData.expectedDelivery);
+    if (updateData.distance !== undefined) docketUpdates.distance = updateData.distance; // ✅ Handle distance field
 
     // Handle dimensions array
     if (updateData.dimensions && Array.isArray(updateData.dimensions)) {
@@ -559,6 +551,7 @@ export const updateDocketWithDetails = async (req, res) => {
     if (updateData.invNo) {
       const invoiceUpdates = {};
       if (updateData.eWayBill !== undefined) invoiceUpdates.eWayBill = updateData.eWayBill;
+      if (updateData.eWayBillExpiry !== undefined) invoiceUpdates.eWayBillExpiry = parseDate(updateData.eWayBillExpiry); // ✅ Handle eWayBillExpiry
       if (updateData.invNo !== undefined) invoiceUpdates.invoiceNo = updateData.invNo;
       if (updateData.invDate !== undefined) invoiceUpdates.invoiceDate = parseDate(updateData.invDate);
       if (updateData.partNo !== undefined) invoiceUpdates.partNo = updateData.partNo;

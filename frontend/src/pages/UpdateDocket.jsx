@@ -101,6 +101,8 @@ export default function UpdateDocket() {
 
           // ---------- INVOICE ----------
           eWayBill: invoice?.eWayBill || "",
+          eWayBillExpiry: invoice?.eWayBillExpiry?.slice(0, 10) || "",
+          distance: docket?.distance || "",
           invNo: invoice?.invoiceNo || "",
           invDate: invoice?.invoiceDate?.slice(0, 10) || "",
           partNo: invoice?.partNo || "",
@@ -203,9 +205,78 @@ export default function UpdateDocket() {
     setMessage('');
 
     try {
+      // Helper function to safely convert date to ISO string
+      const toISOString = (dateString) => {
+        if (!dateString) return undefined;
+        try {
+          const date = new Date(dateString);
+          if (isNaN(date.getTime())) {
+            return undefined;
+          }
+          return date.toISOString();
+        } catch (error) {
+          console.error('Date conversion error:', error);
+          return undefined;
+        }
+      };
+
+      // ✅ Backend expects flat fields, not nested objects
       const updatePayload = {
-        ...formData,
-        dimensions: dimensions
+        // Docket fields
+        docketNo: formData.docketNo,
+        bookingDate: toISOString(formData.bookingDate),
+        destinationCity: formData.destinationCity,
+        location: formData.location,
+        postalCode: formData.postalCode,
+        expectedDelivery: toISOString(formData.expectedDelivery),
+        distance: formData.distance, // ✅ Distance stored in docket
+        dimensions: dimensions,
+        
+        // Consignor fields (flat)
+        isTemporaryConsignor: formData.isTemporaryConsignor,
+        consignor: formData.consignor,
+        consignorAddress: formData.consignorAddress,
+        consignorCity: formData.consignorCity,
+        consignorState: formData.consignorState,
+        consignorPin: formData.consignorPin,
+        consignorPhone: formData.consignorPhone,
+        crgstinNo: formData.crgstinNo,
+        
+        // Consignee fields (flat)
+        isTemporaryConsignee: formData.isTemporaryConsignee,
+        consignee: formData.consignee,
+        consigneeAddress: formData.consigneeAddress,
+        consigneeCity: formData.consigneeCity,
+        consigneeState: formData.consigneeState,
+        consigneePin: formData.consigneePin,
+        consigneePhone: formData.consigneePhone,
+        cegstinNo: formData.cegstinNo,
+        
+        // Booking fields (flat)
+        customerType: formData.customerType,
+        bookingMode: formData.bookingMode,
+        origin: formData.origin,
+        originCity: formData.originCity,
+        originLocation: formData.originLocation,
+        destinationBranch: formData.destinationBranch,
+        billingParty: formData.billingParty,
+        billingAt: formData.billingAt,
+        bookingType: formData.bookingType,
+        deliveryMode: formData.deliveryMode,
+        loadType: formData.loadType,
+        gstinNo: formData.gstinNo,
+        
+        // Invoice fields (flat)
+        eWayBill: formData.eWayBill,
+        eWayBillExpiry: toISOString(formData.eWayBillExpiry), // ✅ E-way bill expiry
+        invNo: formData.invNo,
+        invDate: toISOString(formData.invDate),
+        partNo: formData.partNo,
+        itemDesc: formData.itemDesc,
+        weight: formData.weight,
+        packet: formData.packet,
+        netInvValue: formData.netInvValue,
+        gInvValue: formData.gInvValue,
       };
 
       const data = await docketAPI.update(id, updatePayload);
@@ -426,6 +497,130 @@ export default function UpdateDocket() {
 
       {/* Form */}
       <form onSubmit={handleUpdate} className="max-w-7xl mx-auto px-6 py-6">
+        
+        {/* Invoice Information - Full Width First */}
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Invoice Information</h2>
+            <div className="space-y-3">
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">E-WayBill</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="eWayBill"
+                    value={formData.eWayBill}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Inv. No.</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="invNo"
+                    value={formData.invNo}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Inv. Date</label>
+                  <input
+                    type="date"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="invDate"
+                    value={formData.invDate}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Part No.</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="partNo"
+                    value={formData.partNo}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Net Inv Value</label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="netInvValue"
+                    value={formData.netInvValue}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">G Inv Value</label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="gInvValue"
+                    value={formData.gInvValue}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="itemDesc"
+                    value={formData.itemDesc}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">E-way Expiry</label>
+                  <input
+                    type="date"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="eWayBillExpiry"
+                    value={formData.eWayBillExpiry}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Distance (km)</label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="distance"
+                    value={formData.distance}
+                    onChange={handleChange}
+                    placeholder="Road km"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="weight"
+                    value={formData.weight}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Packet</label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    name="packet"
+                    value={formData.packet}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Docket Details and Booking Information - Two Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
           {/* Docket Details */}
@@ -609,103 +804,6 @@ export default function UpdateDocket() {
                   value={formData.gstinNo}
                   onChange={handleChange}
                 />
-              </div>
-            </div>
-          </div>
-
-          {/* Invoice Information */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Invoice Information</h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-Way Bill</label>
-                <input
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  name="eWayBill"
-                  value={formData.eWayBill}
-                  onChange={handleChange}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Invoice No</label>
-                <input
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  name="invNo"
-                  value={formData.invNo}
-                  onChange={handleChange}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
-                <input
-                  type="date"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  name="invDate"
-                  value={formData.invDate}
-                  onChange={handleChange}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Part No</label>
-                <input
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  name="partNo"
-                  value={formData.partNo}
-                  onChange={handleChange}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
-                <textarea
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm h-20"
-                  name="itemDesc"
-                  value={formData.itemDesc}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
-                  <input
-                    type="number"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    name="weight"
-                    value={formData.weight}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Packets</label>
-                  <input
-                    type="number"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    name="packet"
-                    value={formData.packet}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Net Invoice Value</label>
-                  <input
-                    type="number"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    name="netInvValue"
-                    value={formData.netInvValue}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gross Invoice Value</label>
-                  <input
-                    type="number"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    name="gInvValue"
-                    value={formData.gInvValue}
-                    onChange={handleChange}
-                  />
-                </div>
               </div>
             </div>
           </div>
