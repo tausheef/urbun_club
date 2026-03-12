@@ -48,7 +48,7 @@ export default function DocketForm() {
 
   // Dimensions array state - starts with one row
   const [dimensions, setDimensions] = useState([
-    { id: 1, length: '0', width: '0', height: '0', noOfPackets: '0' }
+    { id: 1, length: '0', width: '0', height: '0', noOfPackets: '0', weightOfPackets: '0' }
   ]);
 
   const [loading, setLoading] = useState(false);
@@ -104,7 +104,7 @@ export default function DocketForm() {
   const addDimensionRow = () => {
     if (dimensions.length < 8) {
       const newId = dimensions.length > 0 ? Math.max(...dimensions.map(d => d.id)) + 1 : 1;
-      setDimensions(prev => [...prev, { id: newId, length: '0', width: '0', height: '0', noOfPackets: '0' }]);
+      setDimensions(prev => [...prev, { id: newId, length: '0', width: '0', height: '0', noOfPackets: '0', weightOfPackets: '0' }]);
     }
   };
 
@@ -255,7 +255,7 @@ export default function DocketForm() {
           });
           
           // Reset dimensions
-          setDimensions([{ id: 1, length: '0', width: '0', height: '0', noOfPackets: '0' }]);
+          setDimensions([{ id: 1, length: '0', width: '0', height: '0', noOfPackets: '0', weightOfPackets: '0' }]);
           
           // Fetch next auto number
           fetchNextDocketNumber();
@@ -577,7 +577,7 @@ export default function DocketForm() {
           {/* Dimension Rows */}
           <div className="space-y-3">
             {dimensions.map((dim, index) => (
-              <div key={dim.id} className="grid grid-cols-5 gap-4 items-end pb-3 border-b border-gray-200">
+              <div key={dim.id} className="grid grid-cols-6 gap-4 items-end pb-3 border-b border-gray-200">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Length {index + 1}
@@ -616,6 +616,16 @@ export default function DocketForm() {
                     type="number" 
                     value={dim.noOfPackets}
                     onChange={(e) => handleDimensionChange(dim.id, 'noOfPackets', e.target.value)}
+                    placeholder="0"
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Weight (kg)</label>
+                  <input 
+                    type="number" 
+                    value={dim.weightOfPackets}
+                    onChange={(e) => handleDimensionChange(dim.id, 'weightOfPackets', e.target.value)}
                     placeholder="0"
                     className="w-full border border-gray-300 rounded px-2 py-1 text-sm" 
                   />

@@ -304,6 +304,7 @@ export const createDocketWithDetails = async (req, res) => {
           width: parseFloat(dim.width) || 0,
           height: parseFloat(dim.height) || 0,
           noOfPackets: parseFloat(dim.noOfPackets) || 0,
+          weightOfPackets: parseFloat(dim.weightOfPackets) || 0,
         }))
       : [];
 
@@ -476,6 +477,7 @@ export const updateDocketWithDetails = async (req, res) => {
     if (updateData.postalCode !== undefined) docketUpdates.postalCode = updateData.postalCode;
     if (updateData.expectedDelivery !== undefined) docketUpdates.expectedDelivery = parseDate(updateData.expectedDelivery);
     if (updateData.distance !== undefined) docketUpdates.distance = updateData.distance; // ✅ Handle distance field
+    if (updateData.coLoader !== undefined) docketUpdates.coLoader = updateData.coLoader; // ✅ Handle coLoader field
 
     // Handle dimensions array
     if (updateData.dimensions && Array.isArray(updateData.dimensions)) {
@@ -484,6 +486,7 @@ export const updateDocketWithDetails = async (req, res) => {
         width: parseFloat(dim.width) || 0,
         height: parseFloat(dim.height) || 0,
         noOfPackets: parseFloat(dim.noOfPackets) || 0,
+        weightOfPackets: parseFloat(dim.weightOfPackets) || 0,
       }));
     }
 
@@ -492,14 +495,11 @@ export const updateDocketWithDetails = async (req, res) => {
       .populate("consignor")
       .populate("consignee");
 
-    // Update BookingInfo
+    // Update BookingInfo (only fields that exist in BookingInfo schema)
     const bookingUpdates = {};
     if (updateData.customerType !== undefined) bookingUpdates.customerType = updateData.customerType;
     if (updateData.bookingMode !== undefined) bookingUpdates.bookingMode = updateData.bookingMode;
-    if (updateData.origin !== undefined) bookingUpdates.origin = updateData.origin;
     if (updateData.originCity !== undefined) bookingUpdates.originCity = updateData.originCity;
-    if (updateData.originLocation !== undefined) bookingUpdates.originLocation = updateData.originLocation;
-    if (updateData.destinationBranch !== undefined) bookingUpdates.destinationBranch = updateData.destinationBranch;
     if (updateData.billingParty !== undefined) bookingUpdates.billingParty = updateData.billingParty;
     if (updateData.billingAt !== undefined) bookingUpdates.billingAt = updateData.billingAt;
     if (updateData.bookingType !== undefined) bookingUpdates.bookingType = updateData.bookingType;
@@ -510,7 +510,7 @@ export const updateDocketWithDetails = async (req, res) => {
     const updatedBookingInfo = await BookingInfo.findOneAndUpdate(
       { docketId },
       bookingUpdates,
-      { new: true }
+      { new: true, upsert: true }
     );
     
     // ================= UPDATE CONSIGNOR =================
@@ -547,13 +547,13 @@ export const updateDocketWithDetails = async (req, res) => {
       );
     }
 
-    // Update Invoice if invoice data is provided
+    // Update Invoice - always run if any invoice field is present
     let updatedInvoice = null;
-    if (updateData.invNo) {
+    if (updateData.invNo !== undefined) {
       const invoiceUpdates = {};
       if (updateData.eWayBill !== undefined) invoiceUpdates.eWayBill = updateData.eWayBill;
-      if (updateData.eWayBillExpiry !== undefined) invoiceUpdates.eWayBillExpiry = parseDate(updateData.eWayBillExpiry); // ✅ Handle eWayBillExpiry
-      if (updateData.invNo !== undefined) invoiceUpdates.invoiceNo = updateData.invNo;
+      if (updateData.eWayBillExpiry !== undefined) invoiceUpdates.eWayBillExpiry = parseDate(updateData.eWayBillExpiry);
+      if (updateData.invNo !== undefined) invoiceUpdates.invoiceNo = updateData.invNo || "N/A";
       if (updateData.invDate !== undefined) invoiceUpdates.invoiceDate = parseDate(updateData.invDate);
       if (updateData.partNo !== undefined) invoiceUpdates.partNo = updateData.partNo;
       if (updateData.itemDesc !== undefined) invoiceUpdates.itemDescription = updateData.itemDesc;
@@ -564,8 +564,8 @@ export const updateDocketWithDetails = async (req, res) => {
 
       updatedInvoice = await Invoice.findOneAndUpdate(
         { docket: docketId },
-        invoiceUpdates,
-        { new: true }
+        { $set: invoiceUpdates },
+        { new: true, upsert: true }
       );
     }
 

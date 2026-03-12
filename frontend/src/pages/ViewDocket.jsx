@@ -371,7 +371,8 @@ export default function ViewDocket() {
                     <th className="px-3 py-1.5 text-left font-semibold">Length</th>
                     <th className="px-3 py-1.5 text-left font-semibold">Width</th>
                     <th className="px-3 py-1.5 text-left font-semibold">Height</th>
-                    <th className="px-3 py-1.5 text-left font-semibold rounded-r-lg">No. of Packets</th>
+                    <th className="px-3 py-1.5 text-left font-semibold">No. of Packets</th>
+                    <th className="px-3 py-1.5 text-left font-semibold rounded-r-lg">Weight (kg)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -382,6 +383,7 @@ export default function ViewDocket() {
                       <td className="px-3 py-1.5 text-gray-700">{dim.width || 0}</td>
                       <td className="px-3 py-1.5 text-gray-700">{dim.height || 0}</td>
                       <td className="px-3 py-1.5 text-gray-700">{dim.noOfPackets || 0}</td>
+                      <td className="px-3 py-1.5 text-gray-700">{dim.weightOfPackets || 0}</td>
                     </tr>
                   ))}
                 </tbody>

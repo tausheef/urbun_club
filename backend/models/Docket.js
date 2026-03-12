@@ -24,6 +24,7 @@ const docketSchema = new mongoose.Schema(
       width:  { type: Number, default: 0 },
       height: { type: Number, default: 0 },
       noOfPackets: { type: Number, default: 0 },
+      weightOfPackets: { type: Number, default: 0 },
     }],
     
     // Auto-generated tracking

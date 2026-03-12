@@ -142,10 +142,11 @@ export default function UpdateDocket() {
               width: dim.width?.toString() || "0",
               height: dim.height?.toString() || "0",
               noOfPackets: dim.noOfPackets?.toString() || "0",
+              weightOfPackets: dim.weightOfPackets?.toString() || "0",
             }))
           );
         } else {
-          setDimensions([{ id: 1, length: "0", width: "0", height: "0", noOfPackets: "0" }]);
+          setDimensions([{ id: 1, length: "0", width: "0", height: "0", noOfPackets: "0", weightOfPackets: "0" }]);
         }
       } catch (error) {
         console.error('Error fetching docket:', error);
@@ -186,7 +187,7 @@ export default function UpdateDocket() {
   const addDimensionRow = () => {
     if (dimensions.length < 8) {
       const newId = dimensions.length > 0 ? Math.max(...dimensions.map(d => d.id)) + 1 : 1;
-      setDimensions(prev => [...prev, { id: newId, length: "0", width: "0", height: "0", noOfPackets: "0" }]);
+      setDimensions(prev => [...prev, { id: newId, length: "0", width: "0", height: "0", noOfPackets: "0", weightOfPackets: "0" }]);
     }
   };
 
@@ -1007,7 +1008,7 @@ export default function UpdateDocket() {
 
           <div className="space-y-3">
             {dimensions.map((dim, index) => (
-              <div key={dim.id} className="grid grid-cols-5 gap-4 items-end pb-3 border-b border-gray-100 last:border-0">
+              <div key={dim.id} className="grid grid-cols-6 gap-4 items-end pb-3 border-b border-gray-100 last:border-0">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Length {index + 1}
@@ -1046,6 +1047,16 @@ export default function UpdateDocket() {
                     type="number"
                     value={dim.noOfPackets}
                     onChange={(e) => handleDimensionChange(dim.id, 'noOfPackets', e.target.value)}
+                    placeholder="0"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Weight (kg)</label>
+                  <input
+                    type="number"
+                    value={dim.weightOfPackets}
+                    onChange={(e) => handleDimensionChange(dim.id, 'weightOfPackets', e.target.value)}
                     placeholder="0"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   />
