@@ -1,5 +1,6 @@
 // controllers/docketController.js
 import Docket from "../models/Docket.js";
+import cloudinary from "../config/cloudinary.js";
 import BookingInfo from "../models/BookingInfo.js";
 import Invoice from "../models/Invoice.js";
 import Consignor from "../models/Consignor.js";
@@ -999,36 +1000,41 @@ export const getRTODockets = async (req, res) => {
     });
   }
 };
-// ── PATCH /api/v1/dockets/:id/mis-image ──
-// Save ImgBB image URL to docket after successful upload
-export const saveMisImage = async (req, res) => {
+// ── POST /api/v1/dockets/:id/upload-mis-image ──
+// Upload MIS receipt image to Cloudinary and save URL to docket
+export const uploadMisImage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { misImageUrl, misImageDeleteHash } = req.body;
 
-    if (!misImageUrl) {
-      return res.status(400).json({ success: false, message: "misImageUrl is required" });
+    // multer+cloudinary already uploaded the file — req.file has the result
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No image file provided" });
     }
+
+    const misImageUrl       = req.file.path;       // Cloudinary secure URL
+    const misImagePublicId  = req.file.filename;   // Cloudinary public_id (for future deletion)
 
     const docket = await Docket.findByIdAndUpdate(
       id,
-      { misImageUrl, misImageDeleteHash: misImageDeleteHash || null },
+      { misImageUrl, misImageDeleteHash: misImagePublicId },
       { new: true }
     );
 
     if (!docket) {
+      // Cleanup uploaded image from Cloudinary if docket not found
+      await cloudinary.uploader.destroy(misImagePublicId);
       return res.status(404).json({ success: false, message: "Docket not found" });
     }
 
-    console.log(`✅ MIS image saved for docket ${docket.docketNo}:`, misImageUrl);
+    console.log(`✅ MIS image uploaded to Cloudinary for docket ${docket.docketNo}:`, misImageUrl);
 
     res.status(200).json({
       success: true,
-      message: "MIS image URL saved successfully",
-      data: { misImageUrl: docket.misImageUrl, misImageDeleteHash: docket.misImageDeleteHash },
+      message: "MIS image uploaded successfully",
+      data: { misImageUrl: docket.misImageUrl, misImagePublicId: docket.misImageDeleteHash },
     });
   } catch (error) {
-    console.error("❌ Error saving MIS image URL:", error);
+    console.error("❌ Error uploading MIS image:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

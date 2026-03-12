@@ -4,7 +4,6 @@ import { docketAPI } from "../utils/api";
 import LORRY_RECEIPT_TEMPLATE from "../utils/Lorryreceipttemplate";
 import jsPDF from "jspdf";
 
-const IMGBB_API_KEY = import.meta.env.VITE_IMGBB_API_KEY;
 
 export default function HtmlToPdf() {
   const { id } = useParams();
@@ -159,26 +158,14 @@ export default function HtmlToPdf() {
     }
   };
 
-  // ── Upload to MIS (ImgBB) and save URL to DB ──
+  // ── Upload to MIS (Cloudinary) and save URL to DB ──
   const handleUploadToMIS = async () => {
     if (!docketData) return;
-    if (!IMGBB_API_KEY) {
-      alert("ImgBB API key not set. Add VITE_IMGBB_API_KEY to your .env file.");
-      return;
-    }
-
     setUploading(true);
     setMisStatus(null);
 
     try {
-      // 1. Build PDF and get page 1 as a JPEG image via canvas
-      const pdf = await buildPDF();
-
-      // Get PDF as data URL, then render page 1 to a canvas at high resolution
-      const pdfDataUrl = pdf.output("datauristring");
-
-      // Use the PDF's first page rendered to canvas via an offscreen approach
-      // We draw the receipt onto a 1123x794 canvas directly (same as preview)
+      // 1. Draw receipt onto offscreen canvas
       const receiptCanvas = document.createElement("canvas");
       receiptCanvas.width  = 1123;
       receiptCanvas.height = 794;
@@ -261,35 +248,19 @@ export default function HtmlToPdf() {
         } catch (e) { console.warn("Signature not loaded"); }
       }
 
-      // 2. Get base64 from canvas (strip the data:image/jpeg;base64, prefix)
-      const imageBase64 = receiptCanvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+      // 2. Convert canvas to Blob (JPEG)
+      const imageBlob = await new Promise((resolve) =>
+        receiptCanvas.toBlob(resolve, "image/jpeg", 0.92)
+      );
 
-      // 3. Upload to ImgBB
-      const formData = new FormData();
-      formData.append("key", IMGBB_API_KEY);
-      formData.append("image", imageBase64);
-      formData.append("name", `lorry_receipt_${docket?.docketNo || id}`);
-
-      const imgbbRes = await fetch("https://api.imgbb.com/1/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const imgbbData = await imgbbRes.json();
-
-      if (!imgbbData.success) {
-        throw new Error(imgbbData?.error?.message || "ImgBB upload failed");
-      }
-
-      const misImageUrl        = imgbbData.data.url;
-      const misImageDeleteHash = imgbbData.data.delete_url;
-
-      // 4. Save URL to DB via docketAPI (auto-attaches auth token)
-      const saveRes = await docketAPI.saveMisImage(id, misImageUrl, misImageDeleteHash);
+      // 3. Upload to Cloudinary via backend (API keys stay server-side)
+      const saveRes = await docketAPI.uploadMisImage(id, imageBlob, docket?.docketNo);
 
       if (!saveRes.success) {
-        throw new Error(saveRes.message || "Failed to save URL to database");
+        throw new Error(saveRes.message || "Failed to upload image");
       }
+
+      const misImageUrl = saveRes.data.misImageUrl;
 
       setMisStatus({ success: true, url: misImageUrl });
       console.log("✅ MIS image uploaded and saved:", misImageUrl);

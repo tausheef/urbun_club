@@ -13,7 +13,7 @@ import {
   getPendingDockets,
   getRTODockets,
   generateLorryReceiptPDF,
-  saveMisImage,
+  uploadMisImage,
 } from "../controllers/docketController.js";
 import { 
   cancelDocket, 
@@ -21,6 +21,7 @@ import {
   getCancelledDockets 
 } from '../controllers/docketCancellationController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
+import uploadMIS from '../middleware/uploadMIS.js';
 
 const router = express.Router();
 
@@ -63,8 +64,8 @@ router.patch('/:id/cancel', protect, adminOnly, cancelDocket);
 // PATCH - Restore a cancelled docket (Admin only)
 router.patch('/:id/restore', protect, adminOnly, restoreDocket);
 
-// PATCH - Save ImgBB MIS image URL to docket
-router.patch('/:id/mis-image', saveMisImage);
+// POST - Upload MIS receipt image to Cloudinary
+router.post('/:id/upload-mis-image', uploadMIS.single('misImage'), uploadMisImage);
 
 // GET - Retrieve a specific docket by ID with all related information
 router.get("/:docketId", getDocketWithDetails);

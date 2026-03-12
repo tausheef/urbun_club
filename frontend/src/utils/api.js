@@ -146,12 +146,19 @@ export const docketAPI = {
     return response.data;
   },
 
-  // ✅ Save ImgBB MIS image URL to docket
-  saveMisImage: async (id, misImageUrl, misImageDeleteHash) => {
-    const response = await axiosInstance.patch(`/dockets/${id}/mis-image`, {
-      misImageUrl,
-      misImageDeleteHash,
-    });
+  // ✅ Upload MIS receipt image to Cloudinary via backend
+  uploadMisImage: async (id, imageBlob, docketNo) => {
+    const formData = new FormData();
+    formData.append("misImage", imageBlob, `mis_receipt_${docketNo || id}.jpg`);
+
+    const response = await axiosInstance.post(
+      `/dockets/${id}/upload-mis-image`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 60000,
+      }
+    );
     return response.data;
   },
 };
