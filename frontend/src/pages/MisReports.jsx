@@ -81,18 +81,13 @@ export default function MisReports() {
           'PKG': result.pkg, 'WEIGHT': result.weight, 'MODE': result.mode,
           'STATUS': result.status, 'DELIVERY DATE': result.deliveryDate,
         };
-        if (hasAnyCoLoader) {
-          baseData['TRANSPORT NAME'] = result.transportName;
-          baseData['TP DOCKET'] = result.transportDocket;
-        }
         baseData['POD'] = result.pod ? 'View POD' : 'No POD';
         return baseData;
       });
       worksheet = XLSX.utils.json_to_sheet(excelData);
-      const podCol = hasAnyCoLoader ? 'P' : 'N';
       searchResults.forEach((result, index) => {
         if (result.pod) {
-          const cell = `${podCol}${index + 2}`;
+          const cell = `N${index + 2}`;
           if (worksheet[cell]) worksheet[cell].l = { Target: result.pod, Tooltip: 'View POD' };
         }
         if (result.docketId) {
@@ -107,10 +102,8 @@ export default function MisReports() {
       const colWidths = [
         { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 },
         { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
-        { wch: 10 }, { wch: 18 }, { wch: 14 },
+        { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 12 },
       ];
-      if (hasAnyCoLoader) { colWidths.push({ wch: 20 }); colWidths.push({ wch: 15 }); }
-      colWidths.push({ wch: 12 });
       worksheet['!cols'] = colWidths;
     }
 
@@ -247,10 +240,8 @@ export default function MisReports() {
                   <div className="text-gray-700 font-semibold">
                     📊 Found {searchResults.length} record{searchResults.length !== 1 ? 's' : ''} for{' '}
                     <span className={isTPNameMode ? 'text-orange-600' : 'text-blue-600'}>{clientName}</span>
-                    {isTPNameMode ? (
+                    {isTPNameMode && (
                       <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">🚛 TP Name View</span>
-                    ) : hasAnyCoLoader && (
-                      <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">🚛 Includes Co-Loader Data</span>
                     )}
                   </div>
                   <button
@@ -349,12 +340,6 @@ export default function MisReports() {
                             <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">MODE</th>
                             <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">STATUS</th>
                             <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide">DELIVERY DATE</th>
-                            {hasAnyCoLoader && (
-                              <>
-                                <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide bg-orange-600">TRANSPORT NAME</th>
-                                <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wide bg-orange-600">TP DOCKET</th>
-                              </>
-                            )}
                             <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wide">POD</th>
                           </tr>
                         </thead>
@@ -404,16 +389,6 @@ export default function MisReports() {
                                 }`}>{result.status}</span>
                               </td>
                               <td className="px-4 py-3.5 text-gray-700">{result.deliveryDate}</td>
-                              {hasAnyCoLoader && (
-                                <>
-                                  <td className="px-4 py-3.5 text-gray-700 bg-orange-50">
-                                    {result.hasCoLoader ? <span className="font-medium">{result.transportName}</span> : <span className="text-gray-400">-</span>}
-                                  </td>
-                                  <td className="px-4 py-3.5 text-gray-700 bg-orange-50">
-                                    {result.hasCoLoader ? <span className="font-medium">{result.transportDocket}</span> : <span className="text-gray-400">-</span>}
-                                  </td>
-                                </>
-                              )}
                               <td className="px-4 py-3.5 text-center">
                                 {result.pod ? (
                                   <a href={result.pod} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors">
