@@ -3,10 +3,13 @@ import { useParams } from "react-router-dom";
 import { docketAPI } from "../utils/api";
 import LORRY_RECEIPT_TEMPLATE from "../utils/Lorryreceipttemplate";
 import jsPDF from "jspdf";
+import { useAuth } from "../contexts/AuthContext";
 
 
 export default function HtmlToPdf() {
   const { id } = useParams();
+  const { token } = useAuth();
+  const isAuthenticated = !!token;
   const [docketData, setDocketData]   = useState(null);
   const [loading, setLoading]         = useState(true);
   const [showSignature, setShowSignature] = useState(false);
@@ -345,7 +348,7 @@ export default function HtmlToPdf() {
         )}
         {showSignature && (
           <div className="absolute" style={{ top: 590, left: 893 }}>
-            <img src="/sign.png" alt="Signature" style={{ width: 170, height: 111, objectFit: "contain" }} />
+            <img src="/erp/sign.png" alt="Signature" style={{ width: 170, height: 111, objectFit: "contain" }} />
           </div>
         )}
       </div>
@@ -373,13 +376,15 @@ export default function HtmlToPdf() {
       {/* Buttons */}
       <div className="flex justify-center gap-4 my-6 print:hidden">
 
-        {/* Signature toggle */}
-        <button
-          onClick={() => setShowSignature((p) => !p)}
-          className={`font-bold px-6 py-4 rounded-lg shadow-xl flex items-center gap-2 text-lg transition-all hover:scale-105 ${showSignature ? "bg-red-500 hover:bg-red-600 text-white" : "bg-green-600 hover:bg-green-700 text-white"}`}
-        >
-          {showSignature ? "Remove Signature" : "Add Signature"}
-        </button>
+        {/* Signature toggle — authenticated only */}
+        {isAuthenticated && (
+          <button
+            onClick={() => setShowSignature((p) => !p)}
+            className={`font-bold px-6 py-4 rounded-lg shadow-xl flex items-center gap-2 text-lg transition-all hover:scale-105 ${showSignature ? "bg-red-500 hover:bg-red-600 text-white" : "bg-green-600 hover:bg-green-700 text-white"}`}
+          >
+            {showSignature ? "Remove Signature" : "Add Signature"}
+          </button>
+        )}
 
         {/* Download PDF */}
         <button
@@ -394,18 +399,20 @@ export default function HtmlToPdf() {
           )}
         </button>
 
-        {/* Upload to MIS */}
-        <button
-          onClick={handleUploadToMIS}
-          disabled={generating || uploading}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-8 py-4 rounded-lg shadow-xl flex items-center gap-3 text-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {uploading ? (
-            <><svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg> Uploading to MIS...</>
-          ) : (
-            <><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-9.707a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V17a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clipRule="evenodd"/></svg> Upload to MIS</>
-          )}
-        </button>
+        {/* Upload to MIS — authenticated only */}
+        {isAuthenticated && (
+          <button
+            onClick={handleUploadToMIS}
+            disabled={generating || uploading}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-8 py-4 rounded-lg shadow-xl flex items-center gap-3 text-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploading ? (
+              <><svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg> Uploading to MIS...</>
+            ) : (
+              <><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-9.707a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V17a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clipRule="evenodd"/></svg> Upload to MIS</>
+            )}
+          </button>
+        )}
 
         {/* Browser Print */}
         <button onClick={handlePrint} className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-6 py-4 rounded-lg shadow-xl text-lg transition-all hover:scale-105">

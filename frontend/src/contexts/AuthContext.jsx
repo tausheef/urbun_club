@@ -7,10 +7,8 @@ const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
+  // Returns null safely on public routes (outside AuthProvider)
+  return context || { token: null, user: null, loading: false };
 };
 
 export const AuthProvider = ({ children }) => {

@@ -59,7 +59,7 @@ export default function Navbar() {
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
                 <img
-                  src="/logo.png"
+                  src="/erp/logo.png"
                   alt="Urban Club Logo"
                   className="w-20 h-10 rounded object-contain bg-white p-1"
                 />

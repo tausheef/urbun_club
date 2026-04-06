@@ -155,7 +155,7 @@ export default function ViewDocket() {
 
   const handleBack        = () => navigate(-1);
   const handleActivity    = () => navigate(`/update-activity/${id}`);
-  const handleDownloadPDF = () => window.open(`/html-to-pdf/${id}`, "_blank");
+  const handleDownloadPDF = () => window.open(`/erp/html-to-pdf/${id}`, "_blank");
 
   if (loading) {
     return (

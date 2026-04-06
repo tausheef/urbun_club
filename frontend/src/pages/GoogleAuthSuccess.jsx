@@ -10,13 +10,9 @@ export default function GoogleAuthSuccess() {
     const token = searchParams.get('token');
 
     if (token) {
-      // Save token to localStorage
       localStorage.setItem('token', token);
-
-      // Fetch user data
       fetchUser();
     } else {
-      // No token, redirect to login
       navigate('/login');
     }
   }, [searchParams, navigate]);
@@ -26,11 +22,9 @@ export default function GoogleAuthSuccess() {
       const data = await authAPI.getMe();
 
       if (data.success) {
-        // Save user data
         localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Redirect to home
-        window.location.href = '/';
+        // Full page reload to /erp/ — ensures AuthContext reinitializes
+        window.location.href = '/erp/';
       } else {
         navigate('/login');
       }

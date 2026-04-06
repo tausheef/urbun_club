@@ -5,7 +5,6 @@ const bookingInfoSchema = new mongoose.Schema(
     docketId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Docket",
-      required: true,
     },
     customerType: { type: String, enum: ["Contractual Client", "Regular"], default: "Regular" },
     // ✅ UPDATED: Added enum validation for bookingMode

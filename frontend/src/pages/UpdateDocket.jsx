@@ -299,7 +299,7 @@ export default function UpdateDocket() {
   };
 
   const handleDownloadPDF = () => {
-    navigate(`/html-to-pdf/${id}`);
+    navigate(`/erp/html-to-pdf/${id}`);
   };
 
   const handleUpdateActivity = () => {

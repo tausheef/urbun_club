@@ -115,7 +115,7 @@ export default function Sidebar() {
           >
             <div className="w-10 h-10 rounded flex items-center justify-center font-bold">
               <img
-                src="/logo.png"
+                src="/erp/logo.png"
                 alt="Urban Club Logo"
                 className="w-10 h-10 rounded object-contain bg-white p-1"
               />

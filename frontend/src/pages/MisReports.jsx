@@ -5,6 +5,47 @@ import * as XLSX from 'xlsx';
 import { useMisReportsStore } from '../stores/misReportsStore';
 import Navbar from '../components/Navbar';
 
+// ─── Table Skeleton ───────────────────────────────────────────────────────────
+function TableSkeleton({ isTPNameMode }) {
+  const normalCols = ['w-12', 'w-24', 'w-28', 'w-36', 'w-36', 'w-24', 'w-24', 'w-28', 'w-14', 'w-20', 'w-16', 'w-24', 'w-24', 'w-16'];
+  const tpCols     = ['w-12', 'w-28', 'w-28', 'w-32', 'w-20'];
+  const cols       = isTPNameMode ? tpCols : normalCols;
+
+  return (
+    <div className="overflow-x-auto animate-pulse">
+      <table className="w-full text-sm">
+        {/* Header skeleton */}
+        <thead>
+          <tr className={isTPNameMode ? 'bg-orange-600' : 'bg-teal-600'}>
+            {cols.map((_, i) => (
+              <th key={i} className="px-4 py-3.5">
+                <div className="h-3 bg-white/30 rounded" />
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        {/* Row skeletons */}
+        <tbody>
+          {Array.from({ length: 8 }).map((_, rowIdx) => (
+            <tr
+              key={rowIdx}
+              className={`border-b border-gray-200 ${rowIdx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+            >
+              {cols.map((colW, colIdx) => (
+                <td key={colIdx} className="px-4 py-3.5">
+                  <div className={`h-3 ${colW} bg-gray-200 rounded`} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function MisReports() {
   const {
     clientType,
@@ -37,7 +78,7 @@ export default function MisReports() {
     setCurrentPage(1);
   };
 
-  // ✅ Export to Excel — TP Name mode exports co-loader columns, normal mode exports full MIS
+  // ✅ Export to Excel
   const exportToExcel = () => {
     if (searchResults.length === 0) { alert('No data to export'); return; }
 
@@ -45,7 +86,6 @@ export default function MisReports() {
     let worksheet;
 
     if (isTPNameMode) {
-      // TP Name mode: 7 co-loader focused columns
       const excelData = searchResults.map(r => ({
         'SLNO':        r.slno,
         'DOCKET NO':   r.docketNo,
@@ -57,10 +97,9 @@ export default function MisReports() {
       searchResults.forEach((r, i) => {
         if (r.docketId) {
           const cell = `B${i + 2}`;
-          // Use misImageUrl if available, otherwise link to lorry receipt page
           const docketTarget = r.misImageUrl
             ? r.misImageUrl
-            : `${window.location.origin}/html-to-pdf/${r.docketId}`;
+            : `${window.location.origin}/erp/html-to-pdf/${r.docketId}`;
           if (worksheet[cell]) worksheet[cell].l = { Target: docketTarget };
         }
         if (r.challan) {
@@ -72,7 +111,6 @@ export default function MisReports() {
         { wch: 6 }, { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
       ];
     } else {
-      // Normal mode: full MIS columns
       const excelData = searchResults.map(result => {
         const baseData = {
           'SLNO': result.slno, 'DATE': result.date, 'DOCKET NO': result.docketNo,
@@ -92,25 +130,23 @@ export default function MisReports() {
         }
         if (result.docketId) {
           const cell = `C${index + 2}`;
-          // Use misImageUrl if available, otherwise link to lorry receipt page
           const docketTarget = result.misImageUrl
             ? result.misImageUrl
-            : `${window.location.origin}/html-to-pdf/${result.docketId}`;
+            : `${window.location.origin}/erp/html-to-pdf/${result.docketId}`;
           if (worksheet[cell]) worksheet[cell].l = { Target: docketTarget };
         }
       });
-      const colWidths = [
+      worksheet['!cols'] = [
         { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 },
         { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
         { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 12 },
       ];
-      worksheet['!cols'] = colWidths;
     }
 
     XLSX.utils.book_append_sheet(workbook, worksheet, 'MIS Report');
     const fileName = `MISReport_${clientName}_${new Date().toLocaleDateString('en-IN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
-  };;
+  };
 
   // Pagination
   const totalPages = Math.ceil(searchResults.length / rowsPerPage);
@@ -123,10 +159,10 @@ export default function MisReports() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
+
       <div className="p-6">
         <div className="max-w-full mx-auto">
-          {/* MIS Report Header */}
+          {/* Header */}
           <div className="bg-blue-50 border-l-4 border-blue-600 p-6 mb-6 rounded-lg shadow-sm">
             <h1 className="text-3xl font-bold text-gray-800">MIS Report</h1>
             <p className="text-gray-600 mt-1">Management Information System - Docket Details</p>
@@ -195,11 +231,7 @@ export default function MisReports() {
                   type="text"
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSearch();
-                    }
-                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
                   placeholder={isTPNameMode ? 'Enter Transport / TP Name to search' : `Enter ${clientType} Name`}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
@@ -223,7 +255,7 @@ export default function MisReports() {
               </div>
             </div>
 
-            {/* Error Message */}
+            {/* Error */}
             {error && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 font-medium">
                 ⚠️ {error}
@@ -231,10 +263,33 @@ export default function MisReports() {
             )}
           </div>
 
-          {/* Results Section */}
-          {hasSearched && (
+          {/* ─── SKELETON while loading ─────────────────────────────────── */}
+          {loading && (
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              {/* Export Button */}
+              {/* Fake header bar */}
+              <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center animate-pulse">
+                <div className="h-4 w-48 bg-gray-300 rounded" />
+                <div className="h-9 w-36 bg-gray-300 rounded-lg" />
+              </div>
+
+              <TableSkeleton isTPNameMode={isTPNameMode} />
+
+              {/* Fake pagination bar */}
+              <div className="border-t border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 animate-pulse">
+                <div className="h-4 w-40 bg-gray-200 rounded" />
+                <div className="flex gap-2">
+                  <div className="h-9 w-24 bg-gray-200 rounded-lg" />
+                  <div className="h-9 w-9 bg-gray-300 rounded-lg" />
+                  <div className="h-9 w-24 bg-gray-200 rounded-lg" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── RESULTS after loading ──────────────────────────────────── */}
+          {!loading && hasSearched && (
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              {/* Export header */}
               {searchResults.length > 0 && (
                 <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                   <div className="text-gray-700 font-semibold">
@@ -254,7 +309,7 @@ export default function MisReports() {
                 </div>
               )}
 
-              {/* No Results */}
+              {/* No results */}
               {searchResults.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="text-6xl mb-4">📭</div>
@@ -265,7 +320,7 @@ export default function MisReports() {
                 <>
                   <div className="overflow-x-auto">
                     {isTPNameMode ? (
-                      /* ✅ TP NAME TABLE: DOCKET | TP DOCKET | TP NAME | CHALLAN */
+                      /* TP NAME TABLE */
                       <table className="w-full text-sm">
                         <thead className="bg-orange-600 text-white sticky top-0">
                           <tr>
@@ -282,20 +337,15 @@ export default function MisReports() {
                               <td className="px-4 py-3.5 text-gray-800 font-semibold">{result.slno}</td>
                               <td className="px-4 py-3.5">
                                 {result.misImageUrl ? (
-                                  // MIS image uploaded → open ImgBB image directly
-                                  <a
-                                    href={result.misImageUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                  <a href={result.misImageUrl} target="_blank" rel="noopener noreferrer"
                                     className="text-purple-700 hover:text-purple-900 font-semibold underline transition-colors flex items-center gap-1"
-                                    title="View MIS Receipt"
-                                  >
-                                    {result.docketNo}
-                                    <ExternalLink size={12} />
+                                    title="View MIS Receipt">
+                                    {result.docketNo}<ExternalLink size={12} />
                                   </a>
                                 ) : result.docketId ? (
-                                  // No MIS image → open lorry receipt page
-                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors" title="View Lorry Receipt">
+                                  <Link to={`/erp/html-to-pdf/${result.docketId}`}
+                                    className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors"
+                                    title="View Lorry Receipt">
                                     {result.docketNo}
                                   </Link>
                                 ) : (
@@ -306,12 +356,8 @@ export default function MisReports() {
                               <td className="px-4 py-3.5 text-orange-700 font-semibold">{result.transportName}</td>
                               <td className="px-4 py-3.5 text-center">
                                 {result.challan ? (
-                                  <a
-                                    href={result.challan}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center justify-center gap-1 text-orange-600 hover:text-orange-800 font-semibold underline transition-colors"
-                                  >
+                                  <a href={result.challan} target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-1 text-orange-600 hover:text-orange-800 font-semibold underline transition-colors">
                                     <ExternalLink size={13} /> View
                                   </a>
                                 ) : (
@@ -323,7 +369,7 @@ export default function MisReports() {
                         </tbody>
                       </table>
                     ) : (
-                      /* ✅ NORMAL MIS TABLE */
+                      /* NORMAL MIS TABLE */
                       <table className="w-full text-sm">
                         <thead className="bg-teal-600 text-white sticky top-0">
                           <tr>
@@ -350,20 +396,15 @@ export default function MisReports() {
                               <td className="px-4 py-3.5 text-gray-700">{result.date}</td>
                               <td className="px-4 py-3.5">
                                 {result.misImageUrl ? (
-                                  // MIS image uploaded → open ImgBB image directly
-                                  <a
-                                    href={result.misImageUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                  <a href={result.misImageUrl} target="_blank" rel="noopener noreferrer"
                                     className="text-purple-700 hover:text-purple-900 font-semibold underline transition-colors flex items-center gap-1"
-                                    title="View MIS Receipt"
-                                  >
-                                    {result.docketNo}
-                                    <ExternalLink size={12} />
+                                    title="View MIS Receipt">
+                                    {result.docketNo}<ExternalLink size={12} />
                                   </a>
                                 ) : result.docketId ? (
-                                  // No MIS image → open lorry receipt page
-                                  <Link to={`/html-to-pdf/${result.docketId}`} className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors" title="View Lorry Receipt">
+                                  <Link to={`/erp/html-to-pdf/${result.docketId}`}
+                                    className="text-blue-700 hover:text-blue-900 font-semibold underline transition-colors"
+                                    title="View Lorry Receipt">
                                     {result.docketNo}
                                   </Link>
                                 ) : (
@@ -381,17 +422,18 @@ export default function MisReports() {
                               <td className="px-4 py-3.5">
                                 <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                                   result.status === 'Delivered'        ? 'bg-green-100 text-green-800' :
-                                  result.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-800' :
+                                  result.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-800'  :
                                   result.status === 'In Transit'       ? 'bg-yellow-100 text-yellow-800' :
                                   result.status === 'Booked'           ? 'bg-purple-100 text-purple-800' :
-                                  result.status === 'Undelivered'      ? 'bg-red-100 text-red-800' :
+                                  result.status === 'Undelivered'      ? 'bg-red-100 text-red-800'    :
                                   'bg-gray-100 text-gray-800'
                                 }`}>{result.status}</span>
                               </td>
                               <td className="px-4 py-3.5 text-gray-700">{result.deliveryDate}</td>
                               <td className="px-4 py-3.5 text-center">
                                 {result.pod ? (
-                                  <a href={result.pod} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors">
+                                  <a href={result.pod} target="_blank" rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors">
                                     View POD
                                   </a>
                                 ) : (
@@ -413,7 +455,6 @@ export default function MisReports() {
                         <span className="font-semibold text-gray-800">{Math.min(endIdx, searchResults.length)}</span> of{' '}
                         <span className="font-semibold text-gray-800">{searchResults.length}</span> records
                       </div>
-
                       <div className="flex gap-2">
                         <button
                           onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
@@ -422,7 +463,6 @@ export default function MisReports() {
                         >
                           ← Previous
                         </button>
-                        
                         <div className="flex gap-1">
                           {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                             const pageNum = i + 1;
@@ -441,7 +481,6 @@ export default function MisReports() {
                             );
                           })}
                         </div>
-                        
                         <button
                           onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                           disabled={currentPage === totalPages}

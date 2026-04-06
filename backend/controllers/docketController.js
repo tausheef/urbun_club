@@ -430,25 +430,61 @@ export const getDocketWithDetails = async (req, res) => {
 
 export const getAllDockets = async (req, res) => {
   try {
-    // IMPORTANT: Populate consignor and consignee from Docket
+    const Activity = (await import("../models/Activity.js")).default;
+
+    // 1. Fetch all dockets with populated refs — ONE query
     const dockets = await Docket.find()
       .populate("consignor")
-      .populate("consignee");
+      .populate("consignee")
+      .lean();
 
-    const docketsWithDetails = await Promise.all(
-      dockets.map(async (docket) => {
-        const bookingInfo = await BookingInfo.findOne({ docketId: docket._id });
-        const invoice = await Invoice.findOne({ docket: docket._id })
-          .populate("consignor")
-          .populate("consignee");
+    if (dockets.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
 
-        return {
-          docket,
-          bookingInfo,
-          invoice,
-        };
-      })
-    );
+    const docketIds = dockets.map((d) => d._id);
+
+    // 2. Bulk-fetch all BookingInfos — ONE query (replaces N findOne calls)
+    const bookingInfos = await BookingInfo.find({ docketId: { $in: docketIds } }).lean();
+    const bookingInfoMap = {};
+    bookingInfos.forEach((b) => {
+      bookingInfoMap[b.docketId.toString()] = b;
+    });
+
+    // 3. Bulk-fetch all Invoices — ONE query (replaces N findOne calls)
+    const invoices = await Invoice.find({ docket: { $in: docketIds } }).lean();
+    const invoiceMap = {};
+    invoices.forEach((inv) => {
+      invoiceMap[inv.docket.toString()] = inv;
+    });
+
+    // 4. Bulk-fetch latest activity per docket via aggregation — ONE query
+    // (replaces 184 separate activityAPI.getByDocket() calls from TotalBooking.jsx)
+    const latestActivities = await Activity.aggregate([
+      { $match: { docketId: { $in: docketIds } } },
+      { $sort: { date: -1, time: -1 } },
+      {
+        $group: {
+          _id: "$docketId",
+          status: { $first: "$status" },
+        },
+      },
+    ]);
+    const activityMap = {};
+    latestActivities.forEach((a) => {
+      activityMap[a._id.toString()] = a.status;
+    });
+
+    // 5. Assemble final response — zero extra DB calls
+    const docketsWithDetails = dockets.map((docket) => {
+      const id = docket._id.toString();
+      return {
+        docket,
+        bookingInfo: bookingInfoMap[id] || null,
+        invoice: invoiceMap[id] || null,
+        latestStatus: activityMap[id] || null,
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -636,6 +672,7 @@ export const toggleRto = async (req, res) => {
         docketId: docket._id,
         docketNo: docket.docketNo,
         rto: docket.rto,
+              docketStatus: docket.docketStatus,
       },
     });
   } catch (error) {
@@ -661,7 +698,7 @@ export const getDeliveredDockets = async (req, res) => {
     const Activity = (await import("../models/Activity.js")).default;
     
     // Get all active (non-cancelled) dockets
-    const dockets = await Docket.find({ docketStatus: 'Active' })
+    const dockets = await Docket.find({ docketStatus: { $ne: 'Cancelled' } })
       .populate("consignor")
       .populate("consignee")
       .lean();
@@ -713,6 +750,7 @@ export const getDeliveredDockets = async (req, res) => {
               consignor: docket.consignor,
               consignee: docket.consignee,
               rto: docket.rto,
+              docketStatus: docket.docketStatus,
             },
             bookingInfo: {
               originCity: bookingInfo?.originCity || docket.destinationCity,
@@ -747,7 +785,7 @@ export const getUndeliveredDockets = async (req, res) => {
   try {
     const Activity = (await import("../models/Activity.js")).default;
     
-    const dockets = await Docket.find({ docketStatus: 'Active' })
+    const dockets = await Docket.find({ docketStatus: { $ne: 'Cancelled' } })
       .populate("consignor")
       .populate("consignee")
       .lean();
@@ -794,6 +832,7 @@ export const getUndeliveredDockets = async (req, res) => {
               consignor: docket.consignor,
               consignee: docket.consignee,
               rto: docket.rto,
+              docketStatus: docket.docketStatus,
             },
             bookingInfo: {
               originCity: bookingInfo?.originCity || docket.destinationCity,
@@ -828,7 +867,7 @@ export const getPendingDockets = async (req, res) => {
   try {
     const Activity = (await import("../models/Activity.js")).default;
     
-    const dockets = await Docket.find({ docketStatus: 'Active' })
+    const dockets = await Docket.find({ docketStatus: { $ne: 'Cancelled' } })
       .populate("consignor")
       .populate("consignee")
       .lean();
@@ -886,6 +925,7 @@ export const getPendingDockets = async (req, res) => {
             consignor: docket.consignor,
             consignee: docket.consignee,
             rto: docket.rto,
+              docketStatus: docket.docketStatus,
           },
           bookingInfo: {
             originCity: bookingInfo?.originCity || docket.destinationCity,
@@ -919,7 +959,7 @@ export const getRTODockets = async (req, res) => {
   try {
     const Activity = (await import("../models/Activity.js")).default;
     
-    const dockets = await Docket.find({ docketStatus: 'Active' })
+    const dockets = await Docket.find({ docketStatus: { $ne: 'Cancelled' } })
       .populate("consignor")
       .populate("consignee")
       .lean();
@@ -977,6 +1017,7 @@ export const getRTODockets = async (req, res) => {
             consignor: docket.consignor,
             consignee: docket.consignee,
             rto: docket.rto,
+              docketStatus: docket.docketStatus,
           },
           bookingInfo: {
             originCity: bookingInfo?.originCity || docket.destinationCity,
@@ -1000,6 +1041,214 @@ export const getRTODockets = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Search dockets by docketNo, city, consignor name, consignee name
+ * @route   GET /api/v1/dockets/search?q=<query>
+ * @access  Public
+ */
+export const searchDockets = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || !q.trim()) {
+      return res.status(400).json({ success: false, message: "Search query is required" });
+    }
+
+    const searchRegex = new RegExp(q.trim(), "i");
+
+    // 1. Search dockets by docketNo or destinationCity — hits indexes
+    const dockets = await Docket.find({
+      docketStatus: { $ne: "Cancelled" },
+      $or: [
+        { docketNo: searchRegex },
+        { destinationCity: searchRegex },
+      ],
+    })
+      .populate("consignor")
+      .populate("consignee")
+      .limit(20)
+      .lean();
+
+    // 2. Also search by consignor/consignee name in their own collections
+    const [matchingConsignors, matchingConsignees] = await Promise.all([
+      Consignor.find({ consignorName: searchRegex }, "_id").lean(),
+      Consignee.find({ consigneeName: searchRegex }, "_id").lean(),
+    ]);
+
+    const consignorIds = matchingConsignors.map((c) => c._id);
+    const consigneeIds = matchingConsignees.map((c) => c._id);
+
+    let extraDockets = [];
+    if (consignorIds.length > 0 || consigneeIds.length > 0) {
+      const orClauses = [];
+      if (consignorIds.length > 0) orClauses.push({ consignor: { $in: consignorIds } });
+      if (consigneeIds.length > 0) orClauses.push({ consignee: { $in: consigneeIds } });
+
+      extraDockets = await Docket.find({
+        docketStatus: { $ne: "Cancelled" },
+        $or: orClauses,
+      })
+        .populate("consignor")
+        .populate("consignee")
+        .limit(20)
+        .lean();
+    }
+
+    // 3. Merge and deduplicate
+    const seen = new Set(dockets.map((d) => d._id.toString()));
+    const allDockets = [...dockets];
+    for (const d of extraDockets) {
+      if (!seen.has(d._id.toString())) {
+        allDockets.push(d);
+        seen.add(d._id.toString());
+      }
+    }
+
+    if (allDockets.length === 0) {
+      return res.status(200).json({ success: true, count: 0, data: [] });
+    }
+
+    // 4. Bulk-fetch BookingInfos for matched dockets only
+    const docketIds = allDockets.map((d) => d._id);
+    const bookingInfos = await BookingInfo.find({ docketId: { $in: docketIds } }).lean();
+    const bookingInfoMap = {};
+    bookingInfos.forEach((b) => {
+      bookingInfoMap[b.docketId.toString()] = b;
+    });
+
+    const result = allDockets.map((docket) => ({
+      docket,
+      bookingInfo: bookingInfoMap[docket._id.toString()] || null,
+      invoice: null,
+    }));
+
+    res.status(200).json({ success: true, count: result.length, data: result });
+  } catch (error) {
+    console.error("❌ Search dockets error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+/**
+ * @desc    Get dockets with server-side pagination + filtering by day/month/year
+ * @route   GET /api/v1/dockets/paginated?page=1&limit=8&month=3&year=2026&day=16
+ * @access  Public
+ */
+export const getPaginatedDockets = async (req, res) => {
+  try {
+    const Activity = (await import("../models/Activity.js")).default;
+
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.max(1, parseInt(req.query.limit) || 8);
+    const skip  = (page - 1) * limit;
+
+    const { month, year, day } = req.query;
+
+    // Build date filter if provided
+    const docketFilter = {};
+    if (year) {
+      const y = parseInt(year);
+      const m = month ? parseInt(month) - 1 : 0;       // month is 0-indexed in Date
+      const d = day   ? parseInt(day)      : 1;
+      const lastMonth = month ? parseInt(month) - 1 : 11;
+      const lastDay   = day
+        ? parseInt(day) + 1
+        : new Date(y, lastMonth + 1, 0).getDate() + 1; // last day of month + 1
+
+      if (day && month) {
+        // Exact day filter
+        docketFilter.bookingDate = {
+          $gte: new Date(y, m, d),
+          $lt:  new Date(y, m, d + 1),
+        };
+      } else if (month) {
+        // Exact month filter
+        docketFilter.bookingDate = {
+          $gte: new Date(y, m, 1),
+          $lt:  new Date(y, m + 1, 1),
+        };
+      } else {
+        // Exact year filter
+        docketFilter.bookingDate = {
+          $gte: new Date(y, 0, 1),
+          $lt:  new Date(y + 1, 0, 1),
+        };
+      }
+    }
+
+    // Exclude cancelled dockets
+    docketFilter.docketStatus = { $ne: "Cancelled" };
+
+    // Run count + page fetch in parallel
+    const [totalCount, dockets] = await Promise.all([
+      Docket.countDocuments(docketFilter),
+      Docket.find(docketFilter)
+        .populate("consignor")
+        .populate("consignee")
+        .sort({ bookingDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    if (dockets.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        pagination: { total: totalCount, page, limit, totalPages: Math.ceil(totalCount / limit) },
+      });
+    }
+
+    const docketIds = dockets.map((d) => d._id);
+
+    // Bulk fetch only for this page's dockets
+    const [bookingInfos, invoices, latestActivities] = await Promise.all([
+      BookingInfo.find({ docketId: { $in: docketIds } }).lean(),
+      Invoice.find({ docket: { $in: docketIds } }).lean(),
+      Activity.aggregate([
+        { $match: { docketId: { $in: docketIds } } },
+        { $sort: { date: -1, time: -1 } },
+        { $group: { _id: "$docketId", status: { $first: "$status" } } },
+      ]),
+    ]);
+
+    const bookingInfoMap = {};
+    bookingInfos.forEach((b) => { bookingInfoMap[b.docketId.toString()] = b; });
+
+    const invoiceMap = {};
+    invoices.forEach((inv) => { invoiceMap[inv.docket.toString()] = inv; });
+
+    const activityMap = {};
+    latestActivities.forEach((a) => { activityMap[a._id.toString()] = a.status; });
+
+    const data = dockets.map((docket) => {
+      const id = docket._id.toString();
+      return {
+        docket,
+        bookingInfo: bookingInfoMap[id] || null,
+        invoice:     invoiceMap[id]     || null,
+        latestStatus: activityMap[id]   || null,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        total:      totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error fetching paginated dockets:", error);
+    res.status(500).json({ success: false, message: error.message || "Failed to fetch dockets" });
+  }
+};
+
 // ── POST /api/v1/dockets/:id/upload-mis-image ──
 // Upload MIS receipt image to Cloudinary and save URL to docket
 export const uploadMisImage = async (req, res) => {
@@ -1035,6 +1284,119 @@ export const uploadMisImage = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error uploading MIS image:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+/**
+ * @desc    MIS Report search — filter by consignor/consignee name,
+ *          returns activities + invoice + co-loader in one shot
+ * @route   GET /api/v1/dockets/mis-search?clientType=Consignor&clientName=ABC
+ * @access  Public
+ */
+export const misSearch = async (req, res) => {
+  try {
+    const Activity = (await import("../models/Activity.js")).default;
+    const CoLoader = (await import("../models/Coloader.js")).default;
+
+    const { clientType, clientName } = req.query;
+
+    if (!clientName?.trim()) {
+      return res.status(400).json({ success: false, message: "clientName is required" });
+    }
+
+    const searchRegex = new RegExp(clientName.trim(), "i");
+
+    // 1. Find matching consignor/consignee IDs first
+    let docketQuery = { docketStatus: { $ne: "Cancelled" } };
+
+    if (clientType === "Consignor") {
+      const matches = await Consignor.find({ consignorName: searchRegex }, "_id").lean();
+      if (matches.length === 0) return res.status(200).json({ success: true, count: 0, data: [] });
+      docketQuery.consignor = { $in: matches.map((c) => c._id) };
+    } else if (clientType === "Consignee") {
+      const matches = await Consignee.find({ consigneeName: searchRegex }, "_id").lean();
+      if (matches.length === 0) return res.status(200).json({ success: true, count: 0, data: [] });
+      docketQuery.consignee = { $in: matches.map((c) => c._id) };
+    } else {
+      return res.status(400).json({ success: false, message: "clientType must be Consignor or Consignee" });
+    }
+
+    // 2. Fetch only matched dockets (NOT all dockets)
+    const dockets = await Docket.find(docketQuery)
+      .populate("consignor")
+      .populate("consignee")
+      .lean();
+
+    if (dockets.length === 0) {
+      return res.status(200).json({ success: true, count: 0, data: [] });
+    }
+
+    const docketIds = dockets.map((d) => d._id);
+
+    // 3. Bulk fetch everything in parallel — 4 queries total regardless of result count
+    const [bookingInfos, invoices, latestActivities, coLoaders] = await Promise.all([
+      BookingInfo.find({ docketId: { $in: docketIds } }).lean(),
+      Invoice.find({ docket: { $in: docketIds } }).lean(),
+      // Aggregation: get latest status + all activities per docket (for POD lookup)
+      Activity.aggregate([
+        { $match: { docketId: { $in: docketIds } } },
+        { $sort: { date: -1, time: -1 } },
+        {
+          $group: {
+            _id: "$docketId",
+            status: { $first: "$status" },
+            activities: { $push: { status: "$status", podImage: "$podImage" } },
+          },
+        },
+      ]),
+      CoLoader.find({ docketId: { $in: docketIds } }).lean(),
+    ]);
+
+    // Build lookup maps
+    const bookingInfoMap = {};
+    bookingInfos.forEach((b) => { bookingInfoMap[b.docketId.toString()] = b; });
+
+    const invoiceMap = {};
+    invoices.forEach((inv) => { invoiceMap[inv.docket.toString()] = inv; });
+
+    const activityMap = {};
+    latestActivities.forEach((a) => {
+      const deliveredWithPod = a.activities.find(
+        (act) => act.status === "Delivered" && act.podImage?.url
+      );
+      activityMap[a._id.toString()] = {
+        status: a.status || "-",
+        podUrl: deliveredWithPod?.podImage?.url || null,
+      };
+    });
+
+    const coLoaderMap = {};
+    coLoaders.forEach((cl) => {
+      const did = cl.docketId?.toString();
+      if (did) coLoaderMap[did] = cl;
+    });
+
+    // 4. Assemble — pure map, zero extra DB calls
+    const result = dockets.map((docket) => {
+      const id = docket._id.toString();
+      const actInfo = activityMap[id] || { status: "-", podUrl: null };
+      const cl = coLoaderMap[id] || null;
+
+      return {
+        docket,
+        bookingInfo: bookingInfoMap[id] || null,
+        invoice: invoiceMap[id] || null,
+        latestStatus: actInfo.status,
+        podUrl: actInfo.podUrl,
+        coLoader: cl
+          ? { transportName: cl.transportName || "-", transportDocket: cl.transportDocket || "-" }
+          : null,
+      };
+    });
+
+    res.status(200).json({ success: true, count: result.length, data: result });
+  } catch (error) {
+    console.error("❌ MIS search error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

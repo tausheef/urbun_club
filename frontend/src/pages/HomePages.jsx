@@ -9,7 +9,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   
   // Get data from Zustand stores
-  const { fetchDockets, fetchInvoices, getTotalDockets, getEWayBillCount, loading } = useDocketStore();
+  const { fetchDockets, fetchInvoices, getTotalDockets, getEWayBillCount, getLastDocket, loading } = useDocketStore();
   const { searchResults, searchQuery, searchType, loading: searchLoading, clearSearch, hasSearched } = useSearchStore();
 
   // E-way Bill expiry notification state
@@ -96,9 +96,15 @@ export default function HomePage() {
   // Get total dockets and e-way bill count
   const totalDockets = getTotalDockets();
   const totalEWayBill = getEWayBillCount();
+  const lastDocket = getLastDocket();
 
   const listItems = [
-    { label: 'DOCKET ENTRY',  path: '/DocketEntry' },
+    { 
+      label: 'DOCKET ENTRY',
+      path: '/DocketEntry',
+      lastDocketNo: lastDocket?.docket?.docketNo || null,
+      lastDocketId: lastDocket?.docket?._id || null,
+    },
     { label: 'TOTAL BOOKING', value: totalDockets, path: '/totalbooking', dynamic: true },
     { label: 'MIS REPORTS',  path: '/misreports' },
     { label: 'E-WAY BILL', value: totalEWayBill, path: '/ewaybill', dynamic: true },
@@ -275,7 +281,18 @@ export default function HomePage() {
                     {item.label}
                   </span>
                   <span className="text-gray-900 font-semibold text-lg">
-                    {loading && item.dynamic ? (
+                    {/* DOCKET ENTRY: show Last Entry link */}
+                    {item.lastDocketId ? (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/view-docket/${item.lastDocketId}`);
+                        }}
+                        className="text-sm font-medium text-blue-900 hover:text-blue-400 cursor-pointer"
+                      >
+                        Last Entry: {item.lastDocketNo}
+                      </span>
+                    ) : loading && item.dynamic ? (
                       <span className="inline-block animate-pulse">...</span>
                     ) : (
                       item.value

@@ -33,28 +33,13 @@ export const useSearchStore = create((set, get) => ({
 
     set({ loading: true, error: null, hasSearched: true });
     try {
-      const data = await docketAPI.getAll();
+      // ✅ Dedicated search endpoint — no longer fetches all dockets
+      const data = await docketAPI.search(query);
 
-      if (data.success && data.data) {
-        // Filter dockets based on search query
-        const filtered = data.data.filter(item => {
-          const docketNo = item.docket?.docketNo || '';
-          const originCity = item.bookingInfo?.originCity || '';
-          const destinationCity = item.docket?.destinationCity || '';
-          const consignorName = item.docket?.consignor?.consignorName || '';
-          const consigneeName = item.docket?.consignee?.consigneeName || '';
-
-          const searchLower = query.toLowerCase();
-          return (
-            docketNo.toLowerCase().includes(searchLower) ||
-            originCity.toLowerCase().includes(searchLower) ||
-            destinationCity.toLowerCase().includes(searchLower) ||
-            consignorName.toLowerCase().includes(searchLower) ||
-            consigneeName.toLowerCase().includes(searchLower)
-          );
-        });
-
-        set({ searchResults: filtered, loading: false });
+      if (data.success && Array.isArray(data.data)) {
+        set({ searchResults: data.data, loading: false });
+      } else {
+        set({ searchResults: [], loading: false });
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Search failed';

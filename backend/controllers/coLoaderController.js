@@ -8,7 +8,8 @@ import cloudinary from "../config/cloudinary.js";
 // @access  Private (Everyone)
 export const createCoLoader = async (req, res) => {
   try {
-    const { docketId, transportName, transportDocket } = req.body;
+    const { docketId, transportDocket } = req.body;
+    const transportName = (req.body.transportName || '').trim().replace(/\s+/g, ' ');
     const userId = req.user?._id; // From auth middleware
 
     // Validate required fields
@@ -170,7 +171,8 @@ export const getCoLoaderByDocketId = async (req, res) => {
 export const updateCoLoader = async (req, res) => {
   try {
     const { id } = req.params;
-    const { transportName, transportDocket } = req.body;
+    const { transportDocket } = req.body;
+    const transportName = (req.body.transportName || '').trim().replace(/\s+/g, ' ');
 
     const coLoader = await CoLoader.findById(id);
     if (!coLoader) {
@@ -181,7 +183,7 @@ export const updateCoLoader = async (req, res) => {
     }
 
     // Update fields
-    if (transportName) coLoader.transportName = transportName;
+    if (transportName) coLoader.transportName = transportName.trim().replace(/\s+/g, ' ');
     if (transportDocket) coLoader.transportDocket = transportDocket;
 
     // Update challan image if new one uploaded

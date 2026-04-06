@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { coLoaderAPI } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CoLoaderBookings() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   
   const [coLoaders, setCoLoaders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,6 +14,8 @@ export default function CoLoaderBookings() {
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteModal, setDeleteModal] = useState({ show: false, id: null, docketNo: '' });
   const [selectedImage, setSelectedImage] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 8;
 
   // Fetch co-loaders on mount
   useEffect(() => {
@@ -74,6 +78,10 @@ export default function CoLoaderBookings() {
     );
   });
 
+  const totalPages = Math.ceil(filteredCoLoaders.length / rowsPerPage);
+  const startIdx = (currentPage - 1) * rowsPerPage;
+  const currentRows = filteredCoLoaders.slice(startIdx, startIdx + rowsPerPage);
+
   // View challan image in modal
   const viewChallan = (challanUrl) => {
     setSelectedImage(challanUrl);
@@ -128,7 +136,7 @@ export default function CoLoaderBookings() {
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             placeholder="🔍 Search by Docket No, Transport Name, or Transport Docket..."
             className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
@@ -208,7 +216,7 @@ export default function CoLoaderBookings() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredCoLoaders.map((coLoader, index) => (
+                  {currentRows.map((coLoader, index) => (
                     <tr 
                       key={coLoader._id}
                       className="hover:bg-gray-50 transition-colors"
@@ -263,28 +271,65 @@ export default function CoLoaderBookings() {
                           >
                             👁️ View
                           </button>
-                          <button
-                            onClick={() => navigate(`/coloader-modify/${coLoader._id}`)}
-                            className="bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-                          >
-                            ✏️ Edit
-                          </button>
-                          <button
-                            onClick={() => setDeleteModal({
-                              show: true,
-                              id: coLoader._id,
-                              docketNo: coLoader.docketId?.docketNo || 'this co-loader'
-                            })}
-                            className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-                          >
-                            🗑️ Delete
-                          </button>
+                          {isAdmin() && (
+                            <button
+                              onClick={() => navigate(`/coloader-modify/${coLoader._id}`)}
+                              className="bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                            >
+                              ✏️ Edit
+                            </button>
+                          )}
+                          {isAdmin() && (
+                            <button
+                              onClick={() => setDeleteModal({
+                                show: true,
+                                id: coLoader._id,
+                                docketNo: coLoader.docketId?.docketNo || 'this co-loader'
+                              })}
+                              className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                            >
+                              🗑️ Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between bg-gray-50">
+                  <div className="text-sm text-gray-600">
+                    Showing {startIdx + 1} to {Math.min(startIdx + rowsPerPage, filteredCoLoaders.length)} of {filteredCoLoaders.length} records
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ← Previous
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => (
+                      <button
+                        key={i + 1}
+                        onClick={() => setCurrentPage(i + 1)}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold ${currentPage === i + 1 ? 'bg-orange-600 text-white' : 'border border-gray-300 hover:bg-gray-100 text-gray-700'}`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

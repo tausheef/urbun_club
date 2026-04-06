@@ -5,7 +5,7 @@ import axios from "axios";
 export const axiosInstance = axios.create({
   baseURL: import.meta.env.MODE === "development" 
     ? "http://localhost:5000/api/v1" 
-    : "/api/v1",
+    : "/erp/api/v1",
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -36,7 +36,7 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      if (!window.location.pathname.includes("/login")) { window.location.href = "/erp/login"; }
     }
 
     // Handle 403 Forbidden
@@ -64,6 +64,30 @@ export const docketAPI = {
   // Get all dockets
   getAll: async (params = {}) => {
     const response = await axiosInstance.get("/dockets", { params });
+    return response.data;
+  },
+
+  // Search dockets by docket no, consignor, consignee, city
+  search: async (query) => {
+    const response = await axiosInstance.get("/dockets/search", {
+      params: { q: query },
+    });
+    return response.data;
+  },
+
+  // MIS Report search by consignor/consignee name
+  misSearch: async (clientType, clientName) => {
+    const response = await axiosInstance.get("/dockets/mis-search", {
+      params: { clientType, clientName },
+    });
+    return response.data;
+  },
+
+  // Get paginated dockets for TotalBooking page
+  getPaginated: async ({ page = 1, limit = 8, month = "", year = "", day = "" } = {}) => {
+    const response = await axiosInstance.get("/dockets/paginated", {
+      params: { page, limit, month, year, day },
+    });
     return response.data;
   },
 
@@ -394,6 +418,32 @@ export const coLoaderAPI = {
   // Delete co-loader
   delete: async (id) => {
     const response = await axiosInstance.delete(`/coloaders/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== CONSIGNOR APIs ====================
+
+export const consignorAPI = {
+  getAll: async () => {
+    const response = await axiosInstance.get("/consignors");
+    return response.data;
+  },
+  getById: async (id) => {
+    const response = await axiosInstance.get(`/consignors/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== CONSIGNEE APIs ====================
+
+export const consigneeAPI = {
+  getAll: async () => {
+    const response = await axiosInstance.get("/consignees");
+    return response.data;
+  },
+  getById: async (id) => {
+    const response = await axiosInstance.get(`/consignees/${id}`);
     return response.data;
   },
 };

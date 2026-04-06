@@ -1,164 +1,150 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import Navbar from "../components/Navbar";
 import * as XLSX from "xlsx";
-import { docketAPI, activityAPI } from "../utils/api";
+import { docketAPI } from "../utils/api";
 
 export default function TotalBooking() {
   const navigate = useNavigate();
-  const [dockets, setDockets] = useState([]);
-  const [filteredDockets, setFilteredDockets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
 
-  const [filterMonth, setFilterMonth] = useState("");
-  const [filterYear, setFilterYear] = useState("");
-  const [isFilterApplied, setIsFilterApplied] = useState(false);
-
-  const [activityStatuses, setActivityStatuses] = useState({});
+  // ── Server-side pagination state ──
+  const [dockets, setDockets]           = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState("");
+  const [currentPage, setCurrentPage]   = useState(1);
+  const [totalPages, setTotalPages]     = useState(1);
+  const [totalCount, setTotalCount]     = useState(0);
   const rowsPerPage = 8;
 
-  // Everyone goes to ViewDocket (read-only)
+  // ── Filter state ──
+  const [filterDay,   setFilterDay]     = useState("");
+  const [filterMonth, setFilterMonth]   = useState("");
+  const [filterYear,  setFilterYear]    = useState("");
+  const [appliedFilters, setAppliedFilters] = useState({ day: "", month: "", year: "" });
+  const [isFilterApplied, setIsFilterApplied] = useState(false);
+
+  // ── Activity statuses map ──
+  const [activityStatuses, setActivityStatuses] = useState({});
+
   const handleDocketClick = (docketId) => {
     if (!docketId) return;
     navigate(`/view-docket/${docketId}`);
   };
 
-  // ================= PENDING DAYS =================
-  const calculatePendingDays = (expectedDate) => {
-    if (!expectedDate) return "-";
-    const today = new Date();
-    const expDate = new Date(expectedDate);
-    const diff = Math.floor((today - expDate) / (1000 * 60 * 60 * 24));
-    return diff > 0 ? `${diff} days` : "Pending";
-  };
+  // ================= FETCH PAGE =================
+  const fetchPage = useCallback(async (page, filters = appliedFilters) => {
+    try {
+      setLoading(true);
+      setError("");
 
-  // ================= FETCH DATA =================
-  useEffect(() => {
-    const fetchDockets = async () => {
-      try {
-        setLoading(true);
-        
-        const data = await docketAPI.getAll();
+      const data = await docketAPI.getPaginated({
+        page,
+        limit: rowsPerPage,
+        day:   filters.day,
+        month: filters.month,
+        year:  filters.year,
+      });
 
-        if (!data.success || !Array.isArray(data.data)) {
-          throw new Error("Invalid data format");
-        }
-
-        // FILTER: Only show Active dockets (hide Cancelled)
-        const activeDockets = data.data.filter(
-          item => item.docket?.docketStatus !== 'Cancelled'
-        );
-
-        const transformed = activeDockets.map((item) => {
-          const consignor = item.docket?.consignor;
-          const consignee = item.docket?.consignee;
-
-          return {
-            id: item.docket?._id || null,
-            docketNo: item.docket?.docketNo || "-",
-            bookingDate: item.docket?.bookingDate
-              ? new Date(item.docket.bookingDate).toLocaleDateString("en-IN")
-              : "-",
-            expectedDate: item.docket?.expectedDelivery
-              ? new Date(item.docket.expectedDelivery).toLocaleDateString("en-IN")
-              : "-",
-            mode: item.bookingInfo?.bookingMode || "-",
-            from: item.bookingInfo?.originCity || item.bookingInfo?.origin || "-",
-            to: item.docket?.destinationCity || "-",
-            consigneeName: consignee?.consigneeName || "-",
-            consignerName: consignor?.consignorName || "-",
-            coLoader: item.docket?.coLoader || false,
-            createdAtRaw: item.docket?.createdAt || null,
-          };
-        });
-
-        setDockets(transformed);
-        setFilteredDockets(transformed);
-        setError("");
-
-        // ✅ Fetch latest activity status for each docket
-        const statusMap = {};
-        await Promise.all(
-          transformed.map(async (d) => {
-            if (!d.id) return;
-            try {
-              const actRes = await activityAPI.getByDocket(d.id);
-              if (actRes.success && Array.isArray(actRes.data) && actRes.data.length > 0) {
-                // API returns sorted newest first (date: -1, time: -1) → index 0 is latest
-                const latest = actRes.data[0];
-                statusMap[d.id] = latest.status || "-";
-              } else {
-                statusMap[d.id] = "-";
-              }
-            } catch {
-              statusMap[d.id] = "-";
-            }
-          })
-        );
-        setActivityStatuses(statusMap);
-      } catch (err) {
-        const errorMessage = err.response?.data?.message || err.message || 'Failed to fetch dockets';
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
+      if (!data.success || !Array.isArray(data.data)) {
+        throw new Error("Invalid data format");
       }
-    };
 
-    fetchDockets();
+      // Build activityStatuses map from latestStatus in response
+      const statusMap = {};
+      data.data.forEach((item) => {
+        const id = item.docket?._id;
+        if (id) statusMap[id] = item.latestStatus || "-";
+      });
+      setActivityStatuses(statusMap);
+
+      setDockets(data.data);
+      setTotalPages(data.pagination?.totalPages || 1);
+      setTotalCount(data.pagination?.total      || 0);
+      setCurrentPage(page);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to fetch dockets");
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters]);
+
+  // Initial load
+  useEffect(() => {
+    fetchPage(1, { day: "", month: "", year: "" });
   }, []);
 
-  // ================= FILTER =================
-  const applyMonthYearFilter = () => {
-    if (!filterMonth || !filterYear) {
-      setFilteredDockets(dockets);
-      setCurrentPage(1);
-      setIsFilterApplied(false);
-      return;
-    }
-
-    const filtered = dockets.filter((item) => {
-      if (!item.createdAtRaw) return false;
-      const d = new Date(item.createdAtRaw);
-      return (
-        d.getMonth() + 1 === Number(filterMonth) &&
-        d.getFullYear() === Number(filterYear)
-      );
-    });
-
-    setFilteredDockets(filtered);
-    setCurrentPage(1);
+  // ================= APPLY FILTER =================
+  const applyFilter = () => {
+    if (!filterYear) return; // year required
+    const filters = { day: filterDay, month: filterMonth, year: filterYear };
+    setAppliedFilters(filters);
     setIsFilterApplied(true);
+    fetchPage(1, filters);
   };
 
   // ================= CLEAR FILTER =================
   const clearFilter = () => {
+    setFilterDay("");
     setFilterMonth("");
     setFilterYear("");
-    setFilteredDockets(dockets);
-    setCurrentPage(1);
+    const filters = { day: "", month: "", year: "" };
+    setAppliedFilters(filters);
     setIsFilterApplied(false);
+    fetchPage(1, filters);
+  };
+
+  // ================= PAGE CHANGE =================
+  const handlePageChange = (page) => {
+    if (page < 1 || page > totalPages) return;
+    fetchPage(page, appliedFilters);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // ================= EXPORT =================
-  const exportToExcel = () => {
-    if (filteredDockets.length === 0) return;
+  // Export fetches ALL matching dockets (no page limit) for complete Excel export
+  const exportToExcel = async () => {
+    try {
+      // Fetch all pages by using a large limit
+      const data = await docketAPI.getPaginated({
+        page:  1,
+        limit: 9999,
+        day:   appliedFilters.day,
+        month: appliedFilters.month,
+        year:  appliedFilters.year,
+      });
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(filteredDockets);
-    XLSX.utils.book_append_sheet(wb, ws, "Dockets");
-    XLSX.writeFile(wb, "Dockets.xlsx");
+      if (!data.success || !Array.isArray(data.data) || data.data.length === 0) {
+        alert("No data to export");
+        return;
+      }
+
+      const exportRows = data.data.map((item, i) => ({
+        "#":            i + 1,
+        "Docket No":    item.docket?.docketNo || "-",
+        "Booking Date": item.docket?.bookingDate
+          ? new Date(item.docket.bookingDate).toLocaleDateString("en-IN") : "-",
+        "Delivery":     item.docket?.expectedDelivery
+          ? new Date(item.docket.expectedDelivery).toLocaleDateString("en-IN") : "-",
+        "Mode":         item.bookingInfo?.bookingMode || "-",
+        "From":         item.bookingInfo?.originCity  || "-",
+        "To":           item.docket?.destinationCity  || "-",
+        "Consignor":    item.docket?.consignor?.consignorName || "-",
+        "Consignee":    item.docket?.consignee?.consigneeName || "-",
+        "Status":       item.latestStatus || "-",
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      XLSX.utils.book_append_sheet(wb, ws, "Dockets");
+      XLSX.writeFile(wb, "Dockets.xlsx");
+    } catch (err) {
+      alert("Export failed: " + err.message);
+    }
   };
 
-  // ================= PAGINATION =================
-  const totalPages = Math.ceil(filteredDockets.length / rowsPerPage);
+  // ================= RENDER =================
   const startIdx = (currentPage - 1) * rowsPerPage;
-  const currentDockets = filteredDockets.slice(
-    startIdx,
-    startIdx + rowsPerPage
-  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -176,8 +162,7 @@ export default function TotalBooking() {
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={exportToExcel}
-              disabled={filteredDockets.length === 0}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             >
               <Download size={18} />
               Export to Excel
@@ -185,6 +170,19 @@ export default function TotalBooking() {
 
             <div className="h-6 w-px bg-gray-300"></div>
 
+            {/* Day */}
+            <select
+              value={filterDay}
+              onChange={(e) => setFilterDay(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Day</option>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            {/* Month */}
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
@@ -198,22 +196,21 @@ export default function TotalBooking() {
               ))}
             </select>
 
+            {/* Year */}
             <select
               value={filterYear}
               onChange={(e) => setFilterYear(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Year</option>
-              {[2023, 2024, 2025, 2026].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
+              {[2023, 2024, 2025, 2026, 2027].map((y) => (
+                <option key={y} value={y}>{y}</option>
               ))}
             </select>
 
             <button
-              onClick={applyMonthYearFilter}
-              disabled={!filterMonth || !filterYear}
+              onClick={applyFilter}
+              disabled={!filterYear}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Apply Filter
@@ -231,21 +228,29 @@ export default function TotalBooking() {
           </div>
 
           {isFilterApplied && (
-            <div className="flex items-center gap-2 ml-auto mt-2">
+            <div className="mt-2">
               <span className="text-sm text-gray-600">
-                Filtered by: <span className="font-semibold">{new Date(0, filterMonth - 1).toLocaleString("en-IN", { month: "long" })} {filterYear}</span>
+                Filtered by:{" "}
+                <span className="font-semibold">
+                  {appliedFilters.day   ? `${appliedFilters.day} `   : ""}
+                  {appliedFilters.month ? `${new Date(0, appliedFilters.month - 1).toLocaleString("en-IN", { month: "long" })} ` : ""}
+                  {appliedFilters.year}
+                </span>
+                {" "}— <span className="font-semibold text-blue-600">{totalCount} dockets</span>
               </span>
             </div>
           )}
         </div>
 
+        {/* Loading */}
         {loading && (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
             <p className="text-gray-600">Loading dockets...</p>
           </div>
         )}
-        
+
+        {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <p className="text-red-600">{error}</p>
@@ -272,42 +277,41 @@ export default function TotalBooking() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {currentDockets.length > 0 ? (
-                    currentDockets.map((d, i) => {
-                      const status = activityStatuses[d.id] || "-";
-                      const isCoLoader = d.coLoader === true;
+                  {dockets.length > 0 ? (
+                    dockets.map((item, i) => {
+                      const d          = item.docket;
+                      const isCoLoader = d?.coLoader === true;
+                      const docketId   = d?._id;
+                      const status     = activityStatuses[docketId] || "-";
 
-                      // Status badge color
                       const statusColor =
-                        status === "Delivered"   ? "bg-green-100 text-green-700" :
-                        status === "Undelivered" ? "bg-red-100 text-red-700" :
-                        status === "In Transit"  ? "bg-blue-100 text-blue-700" :
-                        status === "Booked"      ? "bg-gray-100 text-gray-600" :
-                        status === "On Hold"     ? "bg-yellow-100 text-yellow-700" :
+                        status === "Delivered"   ? "bg-green-100 text-green-700"  :
+                        status === "Undelivered" ? "bg-red-100 text-red-700"      :
+                        status === "In Transit"  ? "bg-blue-100 text-blue-700"    :
+                        status === "Booked"      ? "bg-gray-100 text-gray-600"    :
+                        status === "On Hold"     ? "bg-yellow-100 text-yellow-700":
                         "bg-purple-100 text-purple-700";
 
                       return (
                         <tr
-                          key={i}
+                          key={docketId || i}
                           className={`transition-colors ${
                             isCoLoader
                               ? "bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-400"
                               : "hover:bg-gray-50"
                           }`}
                         >
-                          {/* # serial */}
                           <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
                             {startIdx + i + 1}
                           </td>
 
-                          {/* Docket No - clickable */}
                           <td
                             className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                            onClick={() => handleDocketClick(d.id)}
+                            onClick={() => handleDocketClick(docketId)}
                           >
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline">
-                                {d.docketNo}
+                                {d?.docketNo || "-"}
                               </span>
                               {isCoLoader && (
                                 <span className="text-xs bg-orange-200 text-orange-700 px-1.5 py-0.5 rounded font-semibold">
@@ -317,32 +321,36 @@ export default function TotalBooking() {
                             </div>
                           </td>
 
-                          {/* Booking Date */}
-                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{d.bookingDate}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                            {d?.bookingDate ? new Date(d.bookingDate).toLocaleDateString("en-IN") : "-"}
+                          </td>
 
-                          {/* Delivery (Expected) */}
-                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{d.expectedDate}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                            {d?.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString("en-IN") : "-"}
+                          </td>
 
-                          {/* Mode */}
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">
-                              {d.mode}
+                              {item.bookingInfo?.bookingMode || "-"}
                             </span>
                           </td>
 
-                          {/* From */}
-                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.from}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                            {item.bookingInfo?.originCity || "-"}
+                          </td>
 
-                          {/* To */}
-                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.to}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                            {d?.destinationCity || "-"}
+                          </td>
 
-                          {/* Consignor */}
-                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.consignerName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                            {d?.consignor?.consignorName || "-"}
+                          </td>
 
-                          {/* Consignee */}
-                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{d.consigneeName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                            {d?.consignee?.consigneeName || "-"}
+                          </td>
 
-                          {/* Status */}
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusColor}`}>
                               {status}
@@ -354,7 +362,7 @@ export default function TotalBooking() {
                   ) : (
                     <tr>
                       <td colSpan="10" className="px-4 py-8 text-center text-gray-500">
-                        No dockets found for the selected filter
+                        No dockets found
                       </td>
                     </tr>
                   )}
@@ -362,45 +370,73 @@ export default function TotalBooking() {
               </table>
             </div>
 
-            {/* Footer with Pagination */}
+            {/* Pagination */}
             <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between bg-gray-50">
               <div className="text-sm text-gray-600">
-                Showing {filteredDockets.length > 0 ? startIdx + 1 : 0} to {Math.min(startIdx + rowsPerPage, filteredDockets.length)} of {filteredDockets.length} dockets
+                Page <span className="font-semibold text-gray-800">{currentPage}</span> of{" "}
+                <span className="font-semibold text-gray-800">{totalPages}</span>
+                <span className="ml-2 text-gray-400">({totalCount} total)</span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                {/* « First */}
                 <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onClick={() => handlePageChange(1)}
                   disabled={currentPage === 1}
-                  className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft size={20} className="text-gray-600" />
-                </button>
+                  className="px-2 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm text-gray-600"
+                >«</button>
 
-                {/* Page Numbers */}
-                <div className="flex gap-1">
-                  {totalPages > 0 && [...Array(totalPages)].map((_, idx) => (
-                    <button
-                      key={idx + 1}
-                      onClick={() => setCurrentPage(idx + 1)}
-                      className={`min-w-[40px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        currentPage === idx + 1
-                          ? "bg-blue-600 text-white"
-                          : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {idx + 1}
-                    </button>
-                  ))}
-                </div>
-
+                {/* ‹ Prev */}
                 <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm text-gray-600"
+                >‹ Prev</button>
+
+                {/* Smart windowed page numbers */}
+                {(() => {
+                  const pages = [];
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (currentPage > 3) pages.push("...");
+                    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+                      pages.push(i);
+                    }
+                    if (currentPage < totalPages - 2) pages.push("...");
+                    pages.push(totalPages);
+                  }
+                  return pages.map((p, idx) =>
+                    p === "..." ? (
+                      <span key={`e-${idx}`} className="px-2 py-2 text-sm text-gray-400 select-none">...</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => handlePageChange(p)}
+                        className={`min-w-[36px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === p
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >{p}</button>
+                    )
+                  );
+                })()}
+
+                {/* Next › */}
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages || totalPages === 0}
-                  className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight size={20} className="text-gray-600" />
-                </button>
+                  className="px-3 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm text-gray-600"
+                >Next ›</button>
+
+                {/* » Last */}
+                <button
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="px-2 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm text-gray-600"
+                >»</button>
               </div>
             </div>
           </div>

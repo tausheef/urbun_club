@@ -4,6 +4,7 @@ import {
   createDocketWithDetails,
   getDocketWithDetails,
   getAllDockets,
+  getPaginatedDockets,
   updateDocketWithDetails,
   deleteDocketWithDetails,
   getNextDocketNumber,
@@ -14,6 +15,8 @@ import {
   getRTODockets,
   generateLorryReceiptPDF,
   uploadMisImage,
+  searchDockets,
+  misSearch,
 } from "../controllers/docketController.js";
 import { 
   cancelDocket, 
@@ -31,6 +34,18 @@ const router = express.Router();
 
 // GET - Next auto-generated docket number
 router.get("/next-number", getNextDocketNumber);
+
+// GET - Search dockets by docket no, consignor, consignee, city
+// Usage: GET /api/v1/dockets/search?q=UC53221
+router.get("/search", searchDockets);
+
+// GET - MIS Report search by consignor/consignee name
+// Usage: GET /api/v1/dockets/mis-search?clientType=Consignor&clientName=ABC
+router.get("/mis-search", misSearch);
+
+// GET - Server-side paginated dockets for TotalBooking page
+// Usage: GET /api/v1/dockets/paginated?page=1&limit=8&month=3&year=2026&day=16
+router.get("/paginated", getPaginatedDockets);
 
 // GET - All cancelled dockets (Admin only)
 router.get('/cancelled', protect, adminOnly, getCancelledDockets);

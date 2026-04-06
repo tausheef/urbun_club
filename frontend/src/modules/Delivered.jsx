@@ -10,6 +10,8 @@ export default function Delivered() {
   const [filteredDockets, setFilteredDockets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 8;
 
   // Fetch delivered dockets on component mount
   useEffect(() => {
@@ -38,6 +40,7 @@ export default function Delivered() {
         );
       });
       setFilteredDockets(filtered);
+      setCurrentPage(1);
     }
   }, [searchQuery, dockets]);
 
@@ -69,7 +72,12 @@ export default function Delivered() {
 
   const clearSearch = () => {
     setSearchQuery('');
+    setCurrentPage(1);
   };
+
+  const totalPages = Math.ceil(filteredDockets.length / rowsPerPage);
+  const startIdx = (currentPage - 1) * rowsPerPage;
+  const currentRows = filteredDockets.slice(startIdx, startIdx + rowsPerPage);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -184,7 +192,7 @@ export default function Delivered() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredDockets.map((item, idx) => {
+                  {currentRows.map((item, idx) => {
                     const latestActivity = item.activities?.[0];
                     
                     return (
@@ -231,6 +239,39 @@ export default function Delivered() {
                 </tbody>
               </table>
             </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between bg-gray-50">
+                <div className="text-sm text-gray-600">
+                  Showing {startIdx + 1} to {Math.min(startIdx + rowsPerPage, filteredDockets.length)} of {filteredDockets.length} records
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    ← Previous
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold ${currentPage === i + 1 ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-100 text-gray-700'}`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

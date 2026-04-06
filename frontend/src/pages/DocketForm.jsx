@@ -1,140 +1,320 @@
 import React, { useState, useEffect } from 'react';
 import { docketAPI, invoiceAPI } from '../utils/api';
+import AutocompleteInput, { INDIAN_STATES, INDIAN_CITIES } from '../components/AutocompleteInput';
+import PartyAutocomplete from '../components/PartyAutocomplete';
+
+// ─── Validation Helpers ───────────────────────────────────────────────────────
+
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+const PHONE_REGEX = /^[6-9]\d{9}$/;           // Indian mobile: starts 6-9, 10 digits
+const PIN_REGEX   = /^\d{6}$/;
+
+function validateInvoice(f) {
+  const errors = {};
+
+  const net = parseFloat(f.netInvValue);
+  if (!isNaN(net) && net < 0)       errors.netInvValue = 'Net value must be ≥ 0';
+
+  const gross = parseFloat(f.gInvValue);
+  if (!isNaN(gross) && gross < 0)   errors.gInvValue = 'Gross value must be ≥ 0';
+
+  if (f.eWayBill && f.eWayBill.trim().length > 0) {
+    if (f.eWayBillExpiry && new Date(f.eWayBillExpiry) < new Date()) {
+      errors.eWayBillExpiry = 'E-Way Bill expiry date is in the past';
+    }
+  }
+
+  if (f.distance !== '' && f.distance !== null) {
+    const d = parseFloat(f.distance);
+    if (isNaN(d) || d < 0)         errors.distance = 'Distance must be ≥ 0';
+  }
+
+  return errors;
+}
+
+function validateDocket(f) {
+  const errors = {};
+
+  if (!f.docketNo.trim())          errors.docketNo = 'Docket No. is required';
+
+  if (f.postalCode && !PIN_REGEX.test(f.postalCode))
+    errors.postalCode = 'Postal Code must be 6 digits';
+
+  if (f.expectedDelivery && f.bookingDate && new Date(f.expectedDelivery) < new Date(f.bookingDate))
+    errors.expectedDelivery = 'Expected delivery cannot be before booking date';
+
+  return errors;
+}
+
+function validateConsignor(f) {
+  const errors = {};
+
+  if (f.consignorPin && !PIN_REGEX.test(f.consignorPin))
+    errors.consignorPin = 'Must be 6 digits';
+
+  if (f.consignorPhone && !PHONE_REGEX.test(f.consignorPhone))
+    errors.consignorPhone = 'Invalid phone (10 digits, starts 6-9)';
+
+  if (f.crgstinNo && !GSTIN_REGEX.test(f.crgstinNo.toUpperCase()))
+    errors.crgstinNo = 'Invalid GSTIN format';
+
+  return errors;
+}
+
+function validateConsignee(f) {
+  const errors = {};
+
+  if (f.consigneePin && !PIN_REGEX.test(f.consigneePin))
+    errors.consigneePin = 'Must be 6 digits';
+
+  if (f.consigneePhone && !PHONE_REGEX.test(f.consigneePhone))
+    errors.consigneePhone = 'Invalid phone (10 digits, starts 6-9)';
+
+  if (f.cegstinNo && !GSTIN_REGEX.test(f.cegstinNo.toUpperCase()))
+    errors.cegstinNo = 'Invalid GSTIN format';
+
+  return errors;
+}
+
+function validateDimensions(dimensions) {
+  const errors = {};
+  dimensions.forEach((dim, idx) => {
+    const noP = parseFloat(dim.noOfPackets);
+    const wt  = parseFloat(dim.weightOfPackets);
+    if (!isNaN(noP) && noP < 0)
+      errors[`dim_${idx}_noOfPackets`] = `Row ${idx + 1}: Packets must be ≥ 0`;
+    if (!isNaN(wt) && wt < 0)
+      errors[`dim_${idx}_weightOfPackets`] = `Row ${idx + 1}: Weight must be ≥ 0`;
+  });
+  return errors;
+}
+
+// ─── Small UI helpers ─────────────────────────────────────────────────────────
+
+function FieldError({ msg }) {
+  if (!msg) return null;
+  return <p className="text-red-500 text-[11px] mt-0.5">{msg}</p>;
+}
+
+function inputCls(hasError) {
+  return `w-full border ${hasError ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded px-2 py-1 text-sm mt-1 focus:outline-none focus:ring-1 ${hasError ? 'focus:ring-red-400' : 'focus:ring-blue-400'}`;
+}
+
+// ─── Initial State ────────────────────────────────────────────────────────────
+
+const INITIAL_FORM = {
+  eWayBill: '',
+  eWayBillExpiry: '',
+  distance: '',
+  partNo: '',
+  itemDesc: '',
+  invNo: '',
+  weight: '0',
+  packet: '0',
+  invDate: '',
+  netInvValue: '',
+  gInvValue: '',
+  docketNo: '',
+  bookingDate: '',
+  destinationCity: '',
+  postalCode: '',
+  expectedDelivery: '',
+  customerType: 'Contractual Client',
+  bookingMode: 'ROAD',
+  originCity: '',
+  billingParty: '',
+  billingAt: '',
+  bookingType: 'To Pay',
+  deliveryMode: 'Door Delivery',
+  loadType: 'PTL',
+  gstinNo: '',
+  isTemporaryConsignor: false,
+  consignor: '',
+  consignorAddress: '',
+  consignorCity: '',
+  consignorState: '',
+  consignorPin: '',
+  consignorPhone: '',
+  crgstinNo: '',
+  isTemporaryConsignee: true,
+  consignee: '',
+  consigneeAddress: '',
+  consigneeCity: '',
+  consigneeState: '',
+  consigneePin: '',
+  consigneePhone: '',
+  cegstinNo: '',
+};
+
+const INITIAL_DIM = { id: 1, length: '0', width: '0', height: '0', noOfPackets: '0', weightOfPackets: '0' };
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DocketForm() {
-  const [formData, setFormData] = useState({
-    eWayBill: '',
-    eWayBillExpiry: '', // ✅ NEW: Manual expiry date
-    distance: '', // ✅ NEW: Manual distance
-    partNo: '',
-    itemDesc: '',
-    invNo: '',
-    weight: '0',
-    packet: '0',
-    invDate: '',
-    netInvValue: '0',
-    gInvValue: '0',
-    docketNo: '',
-    bookingDate: '',
-    destinationCity: '',
-    postalCode: '',
-    expectedDelivery: '',
-    customerType: 'Contractual Client',
-    bookingMode: 'ROAD',
-    originCity: '',
-    billingParty: '',
-    billingAt: '',
-    bookingType: 'To Pay',
-    deliveryMode: 'Door Delivery',
-    loadType: 'PTL',
-    gstinNo: '',
-    isTemporaryConsignor: false,
-    consignor: '',
-    consignorAddress: '',
-    consignorCity: '',
-    consignorState: '',
-    consignorPin: '',
-    consignorPhone: '',
-    crgstinNo: '',
-    isTemporaryConsignee: true,
-    consignee: '',
-    consigneeAddress: '',
-    consigneeCity: '',
-    consigneeState: '',
-    consigneePin: '',
-    consigneePhone: '',
-    cegstinNo: '',
-  });
+  const [formData, setFormData]         = useState(INITIAL_FORM);
+  const [dimensions, setDimensions]     = useState([INITIAL_DIM]);
+  const [loading, setLoading]           = useState(false);
+  const [message, setMessage]           = useState('');
+  const [isAutoGenerated, setIsAutoGenerated] = useState(true);
 
-  // Dimensions array state - starts with one row
-  const [dimensions, setDimensions] = useState([
-    { id: 1, length: '0', width: '0', height: '0', noOfPackets: '0', weightOfPackets: '0' }
-  ]);
+  // Field-level error maps — keyed by field name
+  const [invoiceErrors,    setInvoiceErrors]    = useState({});
+  const [docketErrors,     setDocketErrors]     = useState({});
+  const [consignorErrors,  setConsignorErrors]  = useState({});
+  const [consigneeErrors,  setConsigneeErrors]  = useState({});
+  const [dimensionErrors,  setDimensionErrors]  = useState({});
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [isAutoGenerated, setIsAutoGenerated] = useState(true); // ✅ NEW: Track if using auto number
-
-  // ✅ NEW: Fetch next docket number on component mount
-  useEffect(() => {
-    fetchNextDocketNumber();
-  }, []);
+  // ── Fetch next docket number on mount ──
+  useEffect(() => { fetchNextDocketNumber(); }, []);
 
   const fetchNextDocketNumber = async () => {
     try {
       const result = await docketAPI.getNextNumber();
-      
       if (result.success) {
-        setFormData(prev => ({
-          ...prev,
-          docketNo: result.data.nextDocketNo
-        }));
+        setFormData(prev => ({ ...prev, docketNo: result.data.nextDocketNo }));
         setIsAutoGenerated(true);
       }
-    } catch (error) {
-      console.error('Error fetching next docket number:', error);
+    } catch {
       setMessage('❌ Failed to fetch auto docket number');
     }
   };
 
+  // ── Generic input change handler ──
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
-    // ✅ NEW: If user manually changes docket number, mark as not auto-generated
-    if (name === 'docketNo') {
-      setIsAutoGenerated(false);
-    }
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    if (name === 'docketNo') setIsAutoGenerated(false);
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+
+    // Clear error for this field on change
+    if (invoiceErrors[name])   setInvoiceErrors(prev   => { const n = {...prev}; delete n[name]; return n; });
+    if (docketErrors[name])    setDocketErrors(prev    => { const n = {...prev}; delete n[name]; return n; });
+    if (consignorErrors[name]) setConsignorErrors(prev => { const n = {...prev}; delete n[name]; return n; });
+    if (consigneeErrors[name]) setConsigneeErrors(prev => { const n = {...prev}; delete n[name]; return n; });
   };
 
-  // Handle dimension row changes
+  // ── Dimension handlers ──
   const handleDimensionChange = (id, field, value) => {
-    setDimensions(prev =>
-      prev.map(dim =>
-        dim.id === id ? { ...dim, [field]: value } : dim
-      )
-    );
+    setDimensions(prev => prev.map(dim => dim.id === id ? { ...dim, [field]: value } : dim));
+    // Clear dimension errors on change
+    setDimensionErrors({});
   };
 
-  // Add new dimension row (max 8)
   const addDimensionRow = () => {
-    if (dimensions.length < 8) {
-      const newId = dimensions.length > 0 ? Math.max(...dimensions.map(d => d.id)) + 1 : 1;
+    if (dimensions.length < 11) {
+      const newId = Math.max(...dimensions.map(d => d.id)) + 1;
       setDimensions(prev => [...prev, { id: newId, length: '0', width: '0', height: '0', noOfPackets: '0', weightOfPackets: '0' }]);
     }
   };
 
-  // Remove dimension row
   const removeDimensionRow = (id) => {
-    if (dimensions.length > 1) {
-      setDimensions(prev => prev.filter(dim => dim.id !== id));
+    if (dimensions.length > 1) setDimensions(prev => prev.filter(dim => dim.id !== id));
+  };
+
+  // ── Date helper ──
+  const toISOString = (dateString) => {
+    if (!dateString) return undefined;
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? undefined : date.toISOString();
+  };
+
+  // ── GSTIN uppercase on blur ──
+  const handleGstinBlur = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value.toUpperCase() }));
+  };
+
+  // ── Consignor autofill from database record ──
+  const handleConsignorSelect = (record) => {
+    setFormData(prev => ({
+      ...prev,
+      consignor:        record.consignorName  || '',
+      consignorAddress: record.address        || '',
+      consignorCity:    record.city           || '',
+      consignorPin:     record.pin            || '',
+      consignorState:   record.state          || '',
+      consignorPhone:   record.phone          || '',
+      crgstinNo:        record.crgstinNo      || '',
+    }));
+  };
+
+  // ── Consignee autofill from database record ──
+  const handleConsigneeSelect = (record) => {
+    setFormData(prev => ({
+      ...prev,
+      consignee:        record.consigneeName  || '',
+      consigneeAddress: record.address        || '',
+      consigneeCity:    record.city           || '',
+      consigneePin:     record.pin            || '',
+      consigneeState:   record.state          || '',
+      consigneePhone:   record.phone          || '',
+      cegstinNo:        record.cegstinNo      || '',
+    }));
+  };
+
+  // ── Arrow key navigation across all inputs ──
+  const handleKeyNav = (e) => {
+    const PREV_KEYS = ['ArrowUp', 'ArrowLeft'];
+    const NEXT_KEYS = ['ArrowDown', 'ArrowRight', 'Enter'];
+    if (![...PREV_KEYS, ...NEXT_KEYS].includes(e.key)) return;
+
+    // Don't hijack left/right inside text inputs (let cursor move normally)
+    const isTextLike = ['text', 'tel', 'number', 'password'].includes(e.target.type);
+    if (isTextLike && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+
+    // Don't hijack Enter on textarea
+    if (e.target.tagName === 'TEXTAREA' && e.key === 'Enter') return;
+
+    const allNavInputs = Array.from(
+      document.querySelectorAll('[data-nav]')
+    ).sort((a, b) => Number(a.dataset.nav) - Number(b.dataset.nav));
+
+    const currentIdx = allNavInputs.indexOf(e.target);
+    if (currentIdx === -1) return;
+
+    const step = PREV_KEYS.includes(e.key) ? -1 : 1;
+    const nextInput = allNavInputs[currentIdx + step];
+    if (nextInput) {
+      e.preventDefault();
+      nextInput.focus();
+      // Place cursor at end for text inputs
+      if (nextInput.type === 'text' || nextInput.type === 'tel') {
+        const len = nextInput.value.length;
+        nextInput.setSelectionRange(len, len);
+      }
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // INVOICE SUBMIT
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleInvoiceSubmit = async (e) => {
     e.preventDefault();
+
+    const errors = validateInvoice(formData);
+    setInvoiceErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMessage('❌ Please fix invoice errors before saving');
+      return;
+    }
+
     setLoading(true);
     setMessage('');
 
     try {
       const invoiceData = {
-        eWayBill: formData.eWayBill,
-        partNo: formData.partNo,
-        itemDesc: formData.itemDesc,
-        invNo: formData.invNo,
-        weight: formData.weight,
-        packet: formData.packet,
-        invDate: formData.invDate,
-        netInvValue: formData.netInvValue,
-        gInvValue: formData.gInvValue,
+        eWayBill:      formData.eWayBill,
+        eWayBillExpiry: toISOString(formData.eWayBillExpiry),
+        partNo:        formData.partNo,
+        itemDesc:      formData.itemDesc,
+        invNo:         formData.invNo.trim(),
+        weight:        parseFloat(formData.weight)  || 0,
+        packet:        dimensions.reduce((sum, d) => sum + (parseFloat(d.noOfPackets) || 0), 0),
+        invDate:       toISOString(formData.invDate),
+        netInvValue:   parseFloat(formData.netInvValue) || 0,
+        gInvValue:     parseFloat(formData.gInvValue)   || 0,
       };
 
       const data = await invoiceAPI.create(invoiceData);
-
       if (data.success) {
         setMessage('✅ Invoice created successfully!');
       } else {
@@ -147,119 +327,91 @@ export default function DocketForm() {
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DOCKET SUBMIT
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleDocketSubmit = async (e) => {
     e.preventDefault();
+
+    // Run all validators
+    const invErr = validateInvoice(formData);
+    const dErr   = validateDocket(formData);
+    const crErr  = validateConsignor(formData);
+    const ceErr  = validateConsignee(formData);
+    const dimErr = validateDimensions(dimensions);
+
+    setInvoiceErrors(invErr);
+    setDocketErrors(dErr);
+    setConsignorErrors(crErr);
+    setConsigneeErrors(ceErr);
+    setDimensionErrors(dimErr);
+
+    const totalErrors =
+      Object.keys(invErr).length +
+      Object.keys(dErr).length +
+      Object.keys(crErr).length +
+      Object.keys(ceErr).length +
+      Object.keys(dimErr).length;
+
+    if (totalErrors > 0) {
+      setMessage(`❌ Please fix ${totalErrors} error(s) before saving`);
+      return;
+    }
+
     setLoading(true);
     setMessage('');
 
     try {
-      // Validate required fields before submission
-      if (!formData.bookingDate) {
-        setMessage('❌ Booking Date is required');
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.destinationCity) {
-        setMessage('❌ Destination City is required');
-        setLoading(false);
-        return;
-      }
-
-      // Helper function to safely convert date to ISO string
-      const toISOString = (dateString) => {
-        if (!dateString) return undefined; // Don't include field if empty
-        try {
-          const date = new Date(dateString);
-          if (isNaN(date.getTime())) {
-            return undefined;
-          }
-          return date.toISOString();
-        } catch (error) {
-          console.error('Date conversion error:', error);
-          return undefined;
-        }
-      };
-
-      // Prepare docket data with dimensions array and isAutoGenerated flag
       const docketData = {
         ...formData,
-        // Convert date strings to ISO format for proper backend handling
-        bookingDate: toISOString(formData.bookingDate), // This will always have a value due to validation above
-        expectedDelivery: toISOString(formData.expectedDelivery),
-        invDate: toISOString(formData.invDate),
-        eWayBillExpiry: toISOString(formData.eWayBillExpiry), // ✅ Convert expiry date to ISO
-        dimensions: dimensions, // Send all dimension rows
-        isAutoGenerated: isAutoGenerated // ✅ NEW: Send the flag
+        // Normalize strings
+        docketNo:        formData.docketNo.trim(),
+        destinationCity: formData.destinationCity.trim(),
+        consignor:       formData.consignor.trim(),
+        consignee:       formData.consignee.trim(),
+        crgstinNo:       formData.crgstinNo.toUpperCase(),
+        cegstinNo:       formData.cegstinNo.toUpperCase(),
+        gstinNo:         formData.gstinNo.toUpperCase(),
+        // Dates → ISO
+        bookingDate:       toISOString(formData.bookingDate),
+        expectedDelivery:  toISOString(formData.expectedDelivery),
+        invDate:           toISOString(formData.invDate),
+        eWayBillExpiry:    toISOString(formData.eWayBillExpiry),
+        // Numbers
+        distance:          formData.distance !== '' ? parseFloat(formData.distance) || 0 : undefined,
+        weight:            parseFloat(formData.weight)      || 0,
+        packet:            dimensions.reduce((sum, d) => sum + (parseFloat(d.noOfPackets) || 0), 0),
+        netInvValue:       parseFloat(formData.netInvValue) || 0,
+        gInvValue:         parseFloat(formData.gInvValue)   || 0,
+        // Dimensions — parse numbers properly
+        dimensions: dimensions.map(({ id, ...dim }) => ({
+          length:          parseFloat(dim.length)          || 0,
+          width:           parseFloat(dim.width)           || 0,
+          height:          parseFloat(dim.height)          || 0,
+          noOfPackets:     parseFloat(dim.noOfPackets)     || 0,
+          weightOfPackets: parseFloat(dim.weightOfPackets) || 0,
+        })),
+        isAutoGenerated,
       };
 
-      // Remove undefined values to prevent sending them to backend
+      // Strip undefined values so backend doesn't receive them
       Object.keys(docketData).forEach(key => {
-        if (docketData[key] === undefined) {
-          delete docketData[key];
-        }
+        if (docketData[key] === undefined) delete docketData[key];
       });
-
-      console.log('Submitting docket data:', docketData); // Debug log
 
       const data = await docketAPI.create(docketData);
 
       if (data.success) {
         setMessage('✅ Docket created successfully!');
-        
-        // ✅ NEW: Reset form and fetch next docket number
         setTimeout(() => {
-          // Reset form data
-          setFormData({
-            eWayBill: '',
-            eWayBillExpiry: '', // ✅ RESET
-            distance: '', // ✅ RESET
-            partNo: '',
-            itemDesc: '',
-            invNo: '',
-            weight: '0',
-            packet: '0',
-            invDate: '',
-            netInvValue: '0',
-            gInvValue: '0',
-            docketNo: '',
-            bookingDate: '',
-            destinationCity: '',
-            postalCode: '',
-            expectedDelivery: '',
-            customerType: 'Contractual Client',
-            bookingMode: 'ROAD',
-            originCity: '',
-            billingParty: '',
-            billingAt: '',
-            bookingType: 'To Pay',
-            deliveryMode: 'Door Delivery',
-            loadType: 'PTL',
-            gstinNo: '',
-            isTemporaryConsignor: false,
-            consignor: '',
-            consignorAddress: '',
-            consignorCity: '',
-            consignorState: '',
-            consignorPin: '',
-            consignorPhone: '',
-            crgstinNo: '',
-            isTemporaryConsignee: true,
-            consignee: '',
-            consigneeAddress: '',
-            consigneeCity: '',
-            consigneeState: '',
-            consigneePin: '',
-            consigneePhone: '',
-            cegstinNo: '',
-          });
-          
-          // Reset dimensions
-          setDimensions([{ id: 1, length: '0', width: '0', height: '0', noOfPackets: '0', weightOfPackets: '0' }]);
-          
-          // Fetch next auto number
+          setFormData(INITIAL_FORM);
+          setDimensions([{ ...INITIAL_DIM }]);
+          setInvoiceErrors({});
+          setDocketErrors({});
+          setConsignorErrors({});
+          setConsigneeErrors({});
+          setDimensionErrors({});
           fetchNextDocketNumber();
-          
           setMessage('');
         }, 2000);
       } else {
@@ -272,18 +424,16 @@ export default function DocketForm() {
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto bg-white rounded p-6">
-        
-        {/* Message */}
-        {message && (
-          <div className={`mb-4 p-3 rounded ${message.includes('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {message}
-          </div>
-        )}
 
-        {/* Invoice Details Section */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            INVOICE DETAILS SECTION
+        ══════════════════════════════════════════════════════════════════════ */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-sm font-bold text-gray-800">Invoice Details ☑</h2>
@@ -295,341 +445,762 @@ export default function DocketForm() {
               + {loading ? 'SAVING...' : 'ADD INVOICE'}
             </button>
           </div>
-          
+
           <div className="border border-gray-300 p-4">
             <div className="grid grid-cols-12 gap-3 mb-4">
+
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-700 mb-1">E-WayBill</label>
-                <input type="text" name="eWayBill" value={formData.eWayBill} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="text"
+                  name="eWayBill"
+                  value={formData.eWayBill}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="1"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Inv. No.</label>
-                <input type="text" name="invNo" value={formData.invNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Inv. No.
+                </label>
+                <input
+                  type="text"
+                  name="invNo"
+                  value={formData.invNo}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="2"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-700 mb-1">Inv. Date</label>
-                <input type="date" name="invDate" value={formData.invDate} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="date"
+                  name="invDate"
+                  value={formData.invDate}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="3"
+                  className={inputCls(!!invoiceErrors.invDate)}
+                />
+                <FieldError msg={invoiceErrors.invDate} />
               </div>
+
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-700 mb-1">Part No.</label>
-                <input type="text" name="partNo" value={formData.partNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="text"
+                  name="partNo"
+                  value={formData.partNo}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="4"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-700 mb-1">Net Inv Value</label>
-                <input type="text" name="netInvValue" value={formData.netInvValue} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="number"
+                  min="0"
+                  name="netInvValue"
+                  value={formData.netInvValue}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="5"
+                  className={inputCls(!!invoiceErrors.netInvValue)}
+                />
+                <FieldError msg={invoiceErrors.netInvValue} />
               </div>
+
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-700 mb-1">G Inv Value</label>
-                <input type="text" name="gInvValue" value={formData.gInvValue} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="number"
+                  min="0"
+                  name="gInvValue"
+                  value={formData.gInvValue}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="6"
+                  className={inputCls(!!invoiceErrors.gInvValue)}
+                />
+                <FieldError msg={invoiceErrors.gInvValue} />
               </div>
+
             </div>
+
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Item Description</label>
-                <input type="text" name="itemDesc" value={formData.itemDesc} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="text"
+                  name="itemDesc"
+                  value={formData.itemDesc}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="7"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">E-way Expiry</label>
-                <input type="date" name="eWayBillExpiry" value={formData.eWayBillExpiry} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="date"
+                  name="eWayBillExpiry"
+                  value={formData.eWayBillExpiry}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="8"
+                  className={inputCls(!!invoiceErrors.eWayBillExpiry)}
+                />
+                <FieldError msg={invoiceErrors.eWayBillExpiry} />
               </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Distance (km)</label>
-                <input type="number" name="distance" value={formData.distance} onChange={handleInputChange} placeholder="Road km" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <input
+                  type="number"
+                  min="0"
+                  name="distance"
+                  value={formData.distance}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="9"
+                  placeholder="Road km"
+                  className={inputCls(!!invoiceErrors.distance)}
+                />
+                <FieldError msg={invoiceErrors.distance} />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Weight</label>
-                <input type="text" name="weight" value={formData.weight} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Weight (kg)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  name="weight"
+                  value={formData.weight}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="1"
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Packet</label>
-                <input type="text" name="packet" value={formData.packet} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Packet <span className="text-[10px] text-blue-600 font-normal">(auto from dimensions)</span></label>
+                <input
+                  type="number"
+                  readOnly
+                  value={dimensions.reduce((sum, d) => sum + (parseFloat(d.noOfPackets) || 0), 0)}
+                  className="w-full border border-gray-300 bg-gray-100 rounded px-2 py-1 text-sm mt-1 cursor-not-allowed font-semibold"
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Three Column Docket Info */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            THREE COLUMN — DOCKET INFO / BOOKING / BILLING
+        ══════════════════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-3 gap-4 mb-8">
-          
-          {/* Left Column - Docket & Destination */}
+
+          {/* Left — Docket Info */}
           <div className="border border-gray-300 p-4">
             <h3 className="font-bold text-sm text-gray-800 mb-3">Docket Info</h3>
             <div className="space-y-3">
-              {/* ✅ UPDATED: Docket No with auto-indicator */}
+
               <div>
                 <label className="text-xs font-medium text-gray-700 flex items-center justify-between">
-                  <span>Docket No.</span>
+                  <span>Docket No. <span className="text-red-500">*</span></span>
                   {isAutoGenerated && (
                     <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded">AUTO</span>
                   )}
                 </label>
-                <input 
-                  type="text" 
-                  name="docketNo" 
-                  value={formData.docketNo} 
-                  onChange={handleInputChange} 
-                  className={`w-full border ${isAutoGenerated ? 'border-green-300 bg-green-50' : 'border-gray-300'} rounded px-2 py-1 text-sm mt-1`}
+                <input
+                  type="text"
+                  name="docketNo"
+                  value={formData.docketNo}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="10"
+                  className={`w-full border ${
+                    docketErrors.docketNo
+                      ? 'border-red-400 bg-red-50'
+                      : isAutoGenerated
+                        ? 'border-green-300 bg-green-50'
+                        : 'border-gray-300'
+                  } rounded px-2 py-1 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-blue-400`}
                   placeholder="053221"
                 />
+                <FieldError msg={docketErrors.docketNo} />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Booking Date</label>
-                <input type="date" name="bookingDate" value={formData.bookingDate} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <input
+                  type="date"
+                  name="bookingDate"
+                  value={formData.bookingDate}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="11"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Destination/City</label>
-                <input type="text" name="destinationCity" value={formData.destinationCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <AutocompleteInput
+                  name="destinationCity"
+                  value={formData.destinationCity}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="12"
+                  suggestions={INDIAN_CITIES}
+                  placeholder="Enter city"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Postal Code</label>
-                <input type="text" name="postalCode" value={formData.postalCode} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <input
+                  type="text"
+                  name="postalCode"
+                  value={formData.postalCode}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="13"
+                  maxLength={6}
+                  placeholder="6-digit PIN"
+                  className={inputCls(!!docketErrors.postalCode)}
+                />
+                <FieldError msg={docketErrors.postalCode} />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Expected Delivery</label>
-                <input type="date" name="expectedDelivery" value={formData.expectedDelivery} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <input
+                  type="date"
+                  name="expectedDelivery"
+                  value={formData.expectedDelivery}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="14"
+                  min={formData.bookingDate || undefined}
+                  className={inputCls(!!docketErrors.expectedDelivery)}
+                />
+                <FieldError msg={docketErrors.expectedDelivery} />
               </div>
+
             </div>
           </div>
 
-          {/* Middle Column - Booking Details */}
+          {/* Middle — Booking Details */}
           <div className="border border-gray-300 p-4">
             <h3 className="font-bold text-sm text-gray-800 mb-3">Booking Details</h3>
             <div className="space-y-3">
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Customer Type</label>
-                <select name="customerType" value={formData.customerType} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                <select
+                  name="customerType"
+                  value={formData.customerType}
+                  onChange={handleInputChange}
+                  className={inputCls(false)}
+                >
                   <option value="Contractual Client">Contractual Client</option>
+                  <option value="Regular">Regular</option>
                 </select>
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Booking Mode</label>
-                <select name="bookingMode" value={formData.bookingMode} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                <select
+                  name="bookingMode"
+                  value={formData.bookingMode}
+                  onChange={handleInputChange}
+                  className={inputCls(false)}
+                >
                   <option value="ROAD">ROAD</option>
                   <option value="AIR">AIR</option>
                   <option value="RAIL">RAIL</option>
                   <option value="SEA">SEA</option>
                 </select>
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Origin City</label>
-                <input type="text" name="originCity" value={formData.originCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" placeholder="Enter city name" />
+                <AutocompleteInput
+                  name="originCity"
+                  value={formData.originCity}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="15"
+                  suggestions={INDIAN_CITIES}
+                  placeholder="Enter city name"
+                  className={inputCls(false)}
+                />
               </div>
+
             </div>
           </div>
 
-          {/* Right Column - Billing Details */}
+          {/* Right — Billing Details */}
           <div className="border border-gray-300 p-4">
             <h3 className="font-bold text-sm text-gray-800 mb-3">Billing Details</h3>
             <div className="space-y-3">
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Billing Party</label>
-                <input type="text" name="billingParty" value={formData.billingParty} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <input
+                  type="text"
+                  name="billingParty"
+                  value={formData.billingParty}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="16"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Billing At</label>
-                <input type="text" name="billingAt" value={formData.billingAt} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <input
+                  type="text"
+                  name="billingAt"
+                  value={formData.billingAt}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="17"
+                  className={inputCls(false)}
+                />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Booking Type</label>
-                <select name="bookingType" value={formData.bookingType} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                <select
+                  name="bookingType"
+                  value={formData.bookingType}
+                  onChange={handleInputChange}
+                  className={inputCls(false)}
+                >
                   <option value="To Pay">To Pay</option>
                   <option value="Paid">Paid</option>
                   <option value="Credit">Credit</option>
                 </select>
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Delivery Mode</label>
-                <select name="deliveryMode" value={formData.deliveryMode} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                <select
+                  name="deliveryMode"
+                  value={formData.deliveryMode}
+                  onChange={handleInputChange}
+                  className={inputCls(false)}
+                >
                   <option value="Door Delivery">Door Delivery</option>
                   <option value="Godown Delivery">Godown Delivery</option>
                 </select>
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Load Type</label>
-                <select name="loadType" value={formData.loadType} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1">
+                <select
+                  name="loadType"
+                  value={formData.loadType}
+                  onChange={handleInputChange}
+                  className={inputCls(false)}
+                >
                   <option value="PTL">PTL</option>
                   <option value="FTL">FTL</option>
                 </select>
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">GSTIN No.</label>
-                <input type="text" name="gstinNo" value={formData.gstinNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <input
+                  type="text"
+                  name="gstinNo"
+                  value={formData.gstinNo}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  onBlur={handleGstinBlur}
+                  data-nav="18"
+                  maxLength={15}
+                  placeholder="22AAAAA0000A1Z5"
+                  className={inputCls(false)}
+                />
               </div>
+
             </div>
           </div>
         </div>
 
-        {/* Consignor and Consignee - Two Column */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            CONSIGNOR & CONSIGNEE
+        ══════════════════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          
-          {/* Consignor Section */}
+
+          {/* Consignor */}
           <div className="border border-gray-300 p-4">
             <div className="flex items-center gap-2 mb-4">
-              <input type="checkbox" name="isTemporaryConsignor" checked={formData.isTemporaryConsignor} onChange={handleInputChange} className="w-4 h-4" />
+              <input
+                type="checkbox"
+                name="isTemporaryConsignor"
+                checked={formData.isTemporaryConsignor}
+                onChange={handleInputChange}
+                className="w-4 h-4"
+              />
               <label className="font-bold text-sm text-gray-800">Is Temporary Consignor</label>
             </div>
             <div className="space-y-3">
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Consignor</label>
-                <input type="text" name="consignor" value={formData.consignor} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <PartyAutocomplete
+                  type="consignor"
+                  name="consignor"
+                  value={formData.consignor}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  onSelect={handleConsignorSelect}
+                  data-nav="19"
+                  placeholder="Type consignor name..."
+                  className={inputCls(false)}
+                />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Address</label>
-                <textarea name="consignorAddress" value={formData.consignorAddress} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1 h-16"></textarea>
+                <textarea
+                  name="consignorAddress"
+                  value={formData.consignorAddress}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="20"
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1 h-16 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-700">City</label>
-                  <input type="text" name="consignorCity" value={formData.consignorCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" placeholder="Enter city" />
+                  <AutocompleteInput
+                    name="consignorCity"
+                    value={formData.consignorCity}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="21"
+                    suggestions={INDIAN_CITIES}
+                    placeholder="Enter city"
+                    className={inputCls(false)}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-700">Pin</label>
-                  <input type="text" name="consignorPin" value={formData.consignorPin} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                  <input
+                    type="text"
+                    name="consignorPin"
+                    value={formData.consignorPin}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="22"
+                    maxLength={6}
+                    placeholder="6 digits"
+                    className={inputCls(!!consignorErrors.consignorPin)}
+                  />
+                  <FieldError msg={consignorErrors.consignorPin} />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-700">State</label>
-                  <input type="text" name="consignorState" value={formData.consignorState} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" placeholder="Enter state" />
+                  <AutocompleteInput
+                    name="consignorState"
+                    value={formData.consignorState}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="23"
+                    suggestions={INDIAN_STATES}
+                    placeholder="Enter state"
+                    className={inputCls(false)}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-700">Phone</label>
-                  <input type="text" name="consignorPhone" value={formData.consignorPhone} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                  <input
+                    type="tel"
+                    name="consignorPhone"
+                    value={formData.consignorPhone}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="24"
+                    maxLength={10}
+                    placeholder="10-digit mobile"
+                    className={inputCls(!!consignorErrors.consignorPhone)}
+                  />
+                  <FieldError msg={consignorErrors.consignorPhone} />
                 </div>
               </div>
+
               <div>
-                <label className="flex items-center gap-2 text-xs">
-                  <input type="checkbox" className="w-4 h-4" />
-                  <span className="font-medium text-gray-700">GSTIN No.</span>
-                </label>
-                <input type="text" name="crgstinNo" value={formData.crgstinNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <label className="text-xs font-medium text-gray-700">GSTIN No.</label>
+                <input
+                  type="text"
+                  name="crgstinNo"
+                  value={formData.crgstinNo}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  onBlur={handleGstinBlur}
+                  data-nav="25"
+                  maxLength={15}
+                  placeholder="22AAAAA0000A1Z5"
+                  className={inputCls(!!consignorErrors.crgstinNo)}
+                />
+                <FieldError msg={consignorErrors.crgstinNo} />
               </div>
+
             </div>
           </div>
 
-          {/* Consignee Section */}
+          {/* Consignee */}
           <div className="border border-gray-300 p-4">
             <div className="flex items-center gap-2 mb-4">
-              <input type="checkbox" name="isTemporaryConsignee" checked={formData.isTemporaryConsignee} onChange={handleInputChange} className="w-4 h-4" />
+              <input
+                type="checkbox"
+                name="isTemporaryConsignee"
+                checked={formData.isTemporaryConsignee}
+                onChange={handleInputChange}
+                className="w-4 h-4"
+              />
               <label className="font-bold text-sm text-gray-800">Is Temporary Consignee</label>
             </div>
             <div className="space-y-3">
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Consignee</label>
-                <input type="text" name="consignee" value={formData.consignee} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <PartyAutocomplete
+                  type="consignee"
+                  name="consignee"
+                  value={formData.consignee}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  onSelect={handleConsigneeSelect}
+                  data-nav="26"
+                  placeholder="Type consignee name..."
+                  className={inputCls(false)}
+                />
               </div>
+
               <div>
                 <label className="text-xs font-medium text-gray-700">Address</label>
-                <textarea name="consigneeAddress" value={formData.consigneeAddress} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1 h-16"></textarea>
+                <textarea
+                  name="consigneeAddress"
+                  value={formData.consigneeAddress}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  data-nav="27"
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1 h-16 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-700">City</label>
-                  <input type="text" name="consigneeCity" value={formData.consigneeCity} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" placeholder="Enter city" />
+                  <AutocompleteInput
+                    name="consigneeCity"
+                    value={formData.consigneeCity}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="28"
+                    suggestions={INDIAN_CITIES}
+                    placeholder="Enter city"
+                    className={inputCls(false)}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-700">Pin</label>
-                  <input type="text" name="consigneePin" value={formData.consigneePin} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                  <input
+                    type="text"
+                    name="consigneePin"
+                    value={formData.consigneePin}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="29"
+                    maxLength={6}
+                    placeholder="6 digits"
+                    className={inputCls(!!consigneeErrors.consigneePin)}
+                  />
+                  <FieldError msg={consigneeErrors.consigneePin} />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-700">State</label>
-                  <input type="text" name="consigneeState" value={formData.consigneeState} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" placeholder="Enter state" />
+                  <AutocompleteInput
+                    name="consigneeState"
+                    value={formData.consigneeState}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="30"
+                    suggestions={INDIAN_STATES}
+                    placeholder="Enter state"
+                    className={inputCls(false)}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-700">Phone</label>
-                  <input type="text" name="consigneePhone" value={formData.consigneePhone} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                  <input
+                    type="tel"
+                    name="consigneePhone"
+                    value={formData.consigneePhone}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyNav}
+                    data-nav="31"
+                    maxLength={10}
+                    placeholder="10-digit mobile"
+                    className={inputCls(!!consigneeErrors.consigneePhone)}
+                  />
+                  <FieldError msg={consigneeErrors.consigneePhone} />
                 </div>
               </div>
+
               <div>
-                <label className="flex items-center gap-2 text-xs">
-                  <input type="checkbox" className="w-4 h-4" />
-                  <span className="font-medium text-gray-700">GSTIN No.</span>
-                </label>
-                <input type="text" name="cegstinNo" value={formData.cegstinNo} onChange={handleInputChange} className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1" />
+                <label className="text-xs font-medium text-gray-700">GSTIN No.</label>
+                <input
+                  type="text"
+                  name="cegstinNo"
+                  value={formData.cegstinNo}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyNav}
+                  onBlur={handleGstinBlur}
+                  data-nav="32"
+                  maxLength={15}
+                  placeholder="22AAAAA0000A1Z5"
+                  className={inputCls(!!consigneeErrors.cegstinNo)}
+                />
+                <FieldError msg={consigneeErrors.cegstinNo} />
               </div>
+
             </div>
           </div>
         </div>
 
-        {/* ================= DYNAMIC DIMENSIONS SECTION ================= */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            DIMENSIONS
+        ══════════════════════════════════════════════════════════════════════ */}
         <div className="border border-gray-300 p-4 mb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-sm text-gray-800">Dimensions</h3>
             <button
               type="button"
               onClick={addDimensionRow}
-              disabled={dimensions.length >= 8}
+              disabled={dimensions.length >= 11}
               className={`${
-                dimensions.length >= 8 
-                  ? 'bg-gray-400 cursor-not-allowed' 
+                dimensions.length >= 11
+                  ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-green-600 hover:bg-green-700'
               } text-white font-bold px-4 py-1 rounded text-sm flex items-center gap-1`}
             >
-              <span className="text-lg">+</span>
-              Add Row
+              <span className="text-lg">+</span> Add Row
             </button>
           </div>
 
-          {/* Dimension Rows */}
+          {/* Dimension error summary */}
+          {Object.keys(dimensionErrors).length > 0 && (
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600 space-y-0.5">
+              {Object.values(dimensionErrors).map((err, i) => <div key={i}>{err}</div>)}
+            </div>
+          )}
+
           <div className="space-y-3">
             {dimensions.map((dim, index) => (
               <div key={dim.id} className="grid grid-cols-6 gap-4 items-end pb-3 border-b border-gray-200">
+
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Length {index + 1}
-                  </label>
-                  <input 
-                    type="number" 
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Length {index + 1}</label>
+                  <input
+                    type="number"
+                    min="0"
                     value={dim.length}
                     onChange={(e) => handleDimensionChange(dim.id, 'length', e.target.value)}
+                    onKeyDown={handleKeyNav}
+                    data-nav={33 + index * 5 + 0}
                     placeholder="0"
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Width</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
+                    min="0"
                     value={dim.width}
                     onChange={(e) => handleDimensionChange(dim.id, 'width', e.target.value)}
+                    onKeyDown={handleKeyNav}
+                    data-nav={33 + index * 5 + 1}
                     placeholder="0"
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Height</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
+                    min="0"
                     value={dim.height}
                     onChange={(e) => handleDimensionChange(dim.id, 'height', e.target.value)}
+                    onKeyDown={handleKeyNav}
+                    data-nav={33 + index * 5 + 2}
                     placeholder="0"
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">No. of Packets</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
+                    min="0"
                     value={dim.noOfPackets}
                     onChange={(e) => handleDimensionChange(dim.id, 'noOfPackets', e.target.value)}
+                    onKeyDown={handleKeyNav}
+                    data-nav={33 + index * 5 + 3}
                     placeholder="0"
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                    className={`w-full border ${dimensionErrors[`dim_${index}_noOfPackets`] ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400`}
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Weight (kg)</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
                     value={dim.weightOfPackets}
                     onChange={(e) => handleDimensionChange(dim.id, 'weightOfPackets', e.target.value)}
+                    onKeyDown={handleKeyNav}
+                    data-nav={33 + index * 5 + 4}
                     placeholder="0"
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm" 
+                    className={`w-full border ${dimensionErrors[`dim_${index}_weightOfPackets`] ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400`}
                   />
                 </div>
+
                 <div>
                   {dimensions.length > 1 && (
                     <button
@@ -641,29 +1212,56 @@ export default function DocketForm() {
                     </button>
                   )}
                 </div>
+
               </div>
             ))}
           </div>
 
-          {/* Info text */}
-          <div className="mt-3 text-xs text-gray-600">
-            {dimensions.length >= 8 ? (
-              <span className="text-red-600 font-medium">Maximum 8 dimension rows reached</span>
-            ) : (
-              <span>Click "+ Add Row" to add more dimensions (max 8)</span>
-            )}
+          {/* Totals Row — same grid as dimension rows */}
+          <div className="grid grid-cols-6 gap-4 items-end mt-3 pt-3 border-t-2 border-gray-400">
+            <div className="col-span-3 text-xs text-gray-500">
+              {dimensions.length >= 11 ? (
+                <span className="text-red-600 font-medium">Maximum 11 dimension rows reached</span>
+              ) : (
+                <span>Click "+ Add Row" to add more dimensions (max 11)</span>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-800 mb-1">Total Packets</label>
+              <input
+                type="number"
+                readOnly
+                value={dimensions.reduce((sum, d) => sum + (parseFloat(d.noOfPackets) || 0), 0)}
+                className="w-full border border-gray-400 bg-gray-100 rounded px-2 py-1 text-sm font-semibold cursor-not-allowed"
+              />
+            </div>
+            <div></div>
+            <div></div>
           </div>
         </div>
 
-        <div className="mt-6 flex gap-4 justify-end">
-          <button
-            onClick={handleDocketSubmit}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded disabled:bg-gray-400 text-sm"
-          >
-            {loading ? 'SAVING...' : 'SAVE DOCKET'}
-          </button>
+        {/* ══════════════════════════════════════════════════════════════════════
+            SAVE BUTTON
+        ══════════════════════════════════════════════════════════════════════ */}
+        <div className="mt-6 flex flex-col gap-3">
+          <div className="flex justify-end">
+            <button
+              onClick={handleDocketSubmit}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded disabled:bg-gray-400 text-sm"
+            >
+              {loading ? 'SAVING...' : 'SAVE DOCKET'}
+            </button>
+          </div>
+          {message && (
+            <div className={`p-3 rounded text-sm font-medium text-center ${
+              message.includes('✅') ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'
+            }`}>
+              {message}
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );

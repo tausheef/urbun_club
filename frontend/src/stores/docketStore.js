@@ -104,6 +104,15 @@ export const useDocketStore = create((set, get) => ({
     ).length;
   },
 
+  // Get last created docket
+  getLastDocket: () => {
+    const { dockets } = get();
+    if (!dockets.length) return null;
+    return [...dockets].sort((a, b) =>
+      new Date(b.docket?.createdAt) - new Date(a.docket?.createdAt)
+    )[0];
+  },
+
   // Clear store
   clearStore: () => {
     set({ dockets: [], invoices: [], loading: false, error: null });

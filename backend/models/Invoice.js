@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const invoiceSchema = new mongoose.Schema(
   {
     eWayBill: { type: String },
-    invoiceNo: { type: String, required: true },
+    invoiceNo: { type: String },
     invoiceDate: { type: Date },
     partNo: { type: String },
     itemDescription: { type: String },

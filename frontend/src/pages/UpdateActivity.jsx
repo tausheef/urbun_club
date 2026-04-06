@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { docketAPI, activityAPI } from "../utils/api";
+import AutocompleteInput, { INDIAN_CITIES } from "../components/AutocompleteInput";
 
 export default function UpdateActivity() {
   const { id } = useParams();
@@ -383,12 +384,11 @@ export default function UpdateActivity() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 📍 Location
               </label>
-              <input
-                type="text"
+              <AutocompleteInput
                 name="location"
                 value={formData.location}
                 onChange={handleInputChange}
-                required
+                suggestions={INDIAN_CITIES}
                 placeholder="Enter location"
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />

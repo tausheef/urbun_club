@@ -52,7 +52,7 @@ function LayoutWithSidebar({ children }) {
 
 export default function App() {
   return (
-    <Router>
+    <Router basename="/erp">
       <AuthProvider>
         <Routes>
           
@@ -343,9 +343,9 @@ export default function App() {
           <Route
             path="/html-to-pdf/:id"
             element={
-              <ProtectedRoute>
-                <HtmlToPdf />
-              </ProtectedRoute>
+              
+              <HtmlToPdf />
+              
             }
           />
 

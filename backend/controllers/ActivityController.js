@@ -213,7 +213,8 @@ export const getDeliveredDockets = async (req, res) => {
 
     // Get full docket details
     const dockets = await Docket.find({
-      _id: { $in: deliveredDocketIds }
+      _id: { $in: deliveredDocketIds },
+      docketStatus: { $ne: 'Cancelled' }
     })
       .populate("consignor")
       .populate("consignee")
@@ -294,7 +295,8 @@ export const getUndeliveredDockets = async (req, res) => {
     });
 
     const dockets = await Docket.find({
-      _id: { $in: undeliveredDocketIds }
+      _id: { $in: undeliveredDocketIds },
+      docketStatus: { $ne: 'Cancelled' }
     })
       .populate("consignor")
       .populate("consignee")
@@ -374,7 +376,8 @@ export const getPendingDockets = async (req, res) => {
     });
 
     const dockets = await Docket.find({
-      _id: { $in: pendingDocketIds }
+      _id: { $in: pendingDocketIds },
+      docketStatus: { $ne: 'Cancelled' }
     })
       .populate("consignor")
       .populate("consignee")
