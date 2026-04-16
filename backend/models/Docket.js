@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const docketSchema = new mongoose.Schema(
   {
-    docketNo: { type: String, required: true },
+    docketNo: { type: String, required: true, trim: true },
     bookingDate: { type: Date },
     destinationCity: { type: String },
     postalCode: { type: String },
@@ -56,6 +56,12 @@ const docketSchema = new mongoose.Schema(
 
   },
   { timestamps: true }
+);
+
+// Partial unique index — allows cancelled docket numbers to be reused
+docketSchema.index(
+  { docketNo: 1 },
+  { unique: true, partialFilterExpression: { docketStatus: { $ne: 'Cancelled' } } }
 );
 
 export default mongoose.model("Docket", docketSchema);

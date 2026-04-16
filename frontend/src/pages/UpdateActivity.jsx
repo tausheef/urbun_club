@@ -1,7 +1,34 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { docketAPI, activityAPI } from "../utils/api";
 import AutocompleteInput, { INDIAN_CITIES } from "../components/AutocompleteInput";
+
+// ─── localStorage helpers ─────────────────────────────────────────────────────
+const STORAGE_KEY = "urbanclub_custom_statuses";
+
+const loadCustomStatuses = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveCustomStatus = (status) => {
+  if (!status || !status.trim()) return;
+  const trimmed = status.trim();
+  try {
+    const existing = loadCustomStatuses();
+    // Don't save duplicates (case-insensitive)
+    if (existing.some(s => s.toLowerCase() === trimmed.toLowerCase())) return;
+    const updated = [trimmed, ...existing].slice(0, 30); // keep max 30
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch {
+    // localStorage full or unavailable — silent fail
+  }
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function UpdateActivity() {
   const { id } = useParams();
@@ -11,12 +38,12 @@ export default function UpdateActivity() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [rto, setRto] = useState(false); // ✅ RTO state
+  const [rto, setRto] = useState(false);
 
-  // ✅ NEW: Suggested status options
+  // ✅ Fixed statuses shown in dropdown
   const SUGGESTED_STATUSES = [
     "Booked",
-    "In Transit", 
+    "In Transit",
     "Needing Appointment for Delivery",
     "Out for Delivery",
     "Delivered",
@@ -27,9 +54,12 @@ export default function UpdateActivity() {
     "Return to Sender",
   ];
 
-  // ✅ NEW: Track if using custom status
   const [isCustomStatus, setIsCustomStatus] = useState(false);
   const [customStatusInput, setCustomStatusInput] = useState("");
+
+  // ✅ Combined suggestions: fixed statuses + previously typed custom statuses
+  // Loaded fresh each time custom input opens so new saves appear immediately
+  const [statusSuggestions, setStatusSuggestions] = useState([]);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -48,43 +78,39 @@ export default function UpdateActivity() {
   const fetchActivities = async () => {
     try {
       const docketResult = await docketAPI.getById(id);
-      
       if (docketResult.success && docketResult.data?.docket) {
         setDocketNo(docketResult.data.docket.docketNo);
-        setRto(docketResult.data.docket.rto || false); // ✅ Set RTO status
+        setRto(docketResult.data.docket.rto || false);
       }
 
       const result = await activityAPI.getByDocket(id);
-
       if (result.success) {
-        if (Array.isArray(result.data)) {
-          setActivities(result.data);
-        } else {
-          setActivities([]);
-        }
+        setActivities(Array.isArray(result.data) ? result.data : []);
       } else {
         setMessage(`❌ ${result.message}`);
       }
     } catch (error) {
       console.error("Error fetching activities:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Failed to fetch activities";
-      setMessage(`❌ ${errorMessage}`);
+      setMessage(`❌ ${error.response?.data?.message || error.message || "Failed to fetch activities"}`);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ✅ NEW: Handle status selection
+  // ✅ When user picks "Custom Status" from dropdown
   const handleStatusChange = (e) => {
     const value = e.target.value;
-    
     if (value === "__CUSTOM__") {
+      // Load fresh suggestions: fixed + saved customs combined
+      const saved = loadCustomStatuses();
+      const combined = [
+        ...SUGGESTED_STATUSES,
+        ...saved.filter(s => !SUGGESTED_STATUSES.some(f => f.toLowerCase() === s.toLowerCase())),
+      ];
+      setStatusSuggestions(combined);
       setIsCustomStatus(true);
       setFormData(prev => ({ ...prev, status: customStatusInput }));
     } else {
@@ -94,23 +120,21 @@ export default function UpdateActivity() {
     }
   };
 
-  // ✅ NEW: Handle custom status input
-  const handleCustomStatusInput = (e) => {
+  // ✅ Handle typing in custom status — uses AutocompleteInput's onChange pattern
+  const handleCustomStatusChange = useCallback((e) => {
     const value = e.target.value;
     setCustomStatusInput(value);
     setFormData(prev => ({ ...prev, status: value }));
-  };
+  }, []);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
       setMessage("❌ Image must be less than 5MB");
       return;
     }
-
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
       setMessage("❌ Only JPG, PNG, and WebP images are allowed");
@@ -118,11 +142,8 @@ export default function UpdateActivity() {
     }
 
     setPodImage(file);
-
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewImage(reader.result);
-    };
+    reader.onloadend = () => setPreviewImage(reader.result);
     reader.readAsDataURL(file);
   };
 
@@ -143,16 +164,18 @@ export default function UpdateActivity() {
       formDataToSend.append("location", formData.location);
       formDataToSend.append("date", formData.date);
       formDataToSend.append("time", formData.time);
-
-      if (podImage) {
-        formDataToSend.append("podImage", podImage);
-      }
+      if (podImage) formDataToSend.append("podImage", podImage);
 
       const result = await activityAPI.create(formDataToSend);
 
       if (result.success) {
+        // ✅ Save custom status to localStorage only if it was a custom entry
+        // (not one of the fixed suggested statuses)
+        if (isCustomStatus && formData.status.trim()) {
+          saveCustomStatus(formData.status.trim());
+        }
+
         setMessage("✅ Activity added successfully!");
-        
         setFormData({
           date: new Date().toISOString().slice(0, 10),
           time: new Date().toTimeString().slice(0, 5),
@@ -163,7 +186,6 @@ export default function UpdateActivity() {
         setCustomStatusInput("");
         setPodImage(null);
         setPreviewImage(null);
-
         fetchActivities();
         setTimeout(() => setMessage(""), 3000);
       } else {
@@ -171,8 +193,7 @@ export default function UpdateActivity() {
       }
     } catch (error) {
       console.error("Error adding activity:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Failed to add activity";
-      setMessage(`❌ ${errorMessage}`);
+      setMessage(`❌ ${error.response?.data?.message || error.message || "Failed to add activity"}`);
     } finally {
       setLoading(false);
     }
@@ -191,13 +212,9 @@ export default function UpdateActivity() {
   };
 
   const handleDeleteActivity = async (activityId) => {
-    if (!window.confirm("Are you sure you want to delete this activity?")) {
-      return;
-    }
-
+    if (!window.confirm("Are you sure you want to delete this activity?")) return;
     try {
       const result = await activityAPI.delete(activityId);
-
       if (result.success) {
         setMessage("✅ Activity deleted successfully!");
         fetchActivities();
@@ -207,16 +224,13 @@ export default function UpdateActivity() {
       }
     } catch (error) {
       console.error("Error deleting activity:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Failed to delete activity";
-      setMessage(`❌ ${errorMessage}`);
+      setMessage(`❌ ${error.response?.data?.message || error.message || "Failed to delete activity"}`);
     }
   };
 
-  // ✅ NEW: Handle RTO toggle
   const handleRtoToggle = async () => {
     try {
       const result = await docketAPI.toggleRto(id, !rto);
-
       if (result.success) {
         setRto(!rto);
         setMessage(`✅ RTO ${!rto ? 'enabled' : 'disabled'} successfully!`);
@@ -226,14 +240,14 @@ export default function UpdateActivity() {
       }
     } catch (error) {
       console.error("Error toggling RTO:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Failed to toggle RTO";
-      setMessage(`❌ ${errorMessage}`);
+      setMessage(`❌ ${error.response?.data?.message || error.message || "Failed to toggle RTO"}`);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-5xl mx-auto">
+        {/* Header */}
         <div className="bg-blue-600 text-white p-6 rounded-lg shadow-md mb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -251,25 +265,23 @@ export default function UpdateActivity() {
           </div>
         </div>
 
+        {/* Message */}
         {message && (
-          <div
-            className={`mb-6 p-4 rounded-lg ${
-              message.includes("✅")
-                ? "bg-green-100 text-green-700 border border-green-300"
-                : "bg-red-100 text-red-700 border border-red-300"
-            }`}
-          >
+          <div className={`mb-6 p-4 rounded-lg ${
+            message.includes("✅")
+              ? "bg-green-100 text-green-700 border border-green-300"
+              : "bg-red-100 text-red-700 border border-red-300"
+          }`}>
             {message}
           </div>
         )}
 
+        {/* Activity History */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
               📋 Activity History
             </h2>
-            
-            {/* ✅ RTO Toggle Button */}
             <button
               onClick={handleRtoToggle}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
@@ -284,9 +296,7 @@ export default function UpdateActivity() {
           </div>
 
           {activities.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No activities found. Add one below!
-            </p>
+            <p className="text-gray-500 text-center py-8">No activities found. Add one below!</p>
           ) : (
             <div className="space-y-3">
               {activities.map((activity) => (
@@ -300,26 +310,16 @@ export default function UpdateActivity() {
                         <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
                           {activity.status}
                         </span>
-                        <span className="text-gray-600 text-sm">
-                          📍 {activity.location}
-                        </span>
+                        <span className="text-gray-600 text-sm">📍 {activity.location}</span>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>
-                          📅 {new Date(activity.date).toLocaleDateString("en-IN")}
-                        </span>
+                        <span>📅 {new Date(activity.date).toLocaleDateString("en-IN")}</span>
                         <span>🕐 {activity.time}</span>
                       </div>
-
-                      {activity.podImage && activity.podImage.url && (
+                      {activity.podImage?.url && (
                         <div className="mt-3">
                           <p className="text-xs text-gray-500 mb-2">📸 Proof of Delivery:</p>
-                          <a
-                            href={activity.podImage.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block w-32"
-                          >
+                          <a href={activity.podImage.url} target="_blank" rel="noopener noreferrer" className="block w-32">
                             <img
                               src={activity.podImage.url}
                               alt="POD"
@@ -329,7 +329,6 @@ export default function UpdateActivity() {
                         </div>
                       )}
                     </div>
-
                     <button
                       onClick={() => handleDeleteActivity(activity._id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors"
@@ -344,17 +343,17 @@ export default function UpdateActivity() {
           )}
         </div>
 
+        {/* Add New Activity */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             ➕ Add New Activity
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Date & Time */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  📅 Date
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">📅 Date</label>
                 <input
                   type="date"
                   name="date"
@@ -364,11 +363,8 @@ export default function UpdateActivity() {
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  🕐 Time
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">🕐 Time</label>
                 <input
                   type="time"
                   name="time"
@@ -380,10 +376,9 @@ export default function UpdateActivity() {
               </div>
             </div>
 
+            {/* Location — same AutocompleteInput as before */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                📍 Location
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">📍 Location</label>
               <AutocompleteInput
                 name="location"
                 value={formData.location}
@@ -394,13 +389,12 @@ export default function UpdateActivity() {
               />
             </div>
 
-            {/* ✅ NEW: Custom Status Input */}
+            {/* Status */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                📊 Status
-              </label>
-              
+              <label className="block text-sm font-medium text-gray-700 mb-2">📊 Status</label>
+
               {!isCustomStatus ? (
+                // ── Fixed dropdown ──────────────────────────────────────────
                 <select
                   value={formData.status}
                   onChange={handleStatusChange}
@@ -409,21 +403,19 @@ export default function UpdateActivity() {
                 >
                   <option value="">Select Status</option>
                   {SUGGESTED_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
+                    <option key={status} value={status}>{status}</option>
                   ))}
                   <option value="__CUSTOM__">✍️ Custom Status (Type Your Own)</option>
                 </select>
               ) : (
+                // ── Custom status with AutocompleteInput ────────────────────
                 <div className="space-y-2">
-                  <input
-                    type="text"
+                  <AutocompleteInput
+                    name="customStatus"
                     value={customStatusInput}
-                    onChange={handleCustomStatusInput}
-                    placeholder="Type custom status..."
-                    required
-                    autoFocus
+                    onChange={handleCustomStatusChange}
+                    suggestions={statusSuggestions}
+                    placeholder="Type custom status... (previous entries shown as suggestions)"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
@@ -439,19 +431,17 @@ export default function UpdateActivity() {
                   </button>
                 </div>
               )}
-              
+
               <p className="text-xs text-gray-500 mt-2">
-                {isCustomStatus 
-                  ? "Type any custom status you want"
-                  : "Select from suggestions or choose 'Custom Status' to type your own"
-                }
+                {isCustomStatus
+                  ? "Previously used custom statuses appear as suggestions as you type"
+                  : "Select from suggestions or choose 'Custom Status' to type your own"}
               </p>
             </div>
 
+            {/* Quick Actions */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                ⚡ Quick Actions
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">⚡ Quick Actions</label>
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -473,12 +463,12 @@ export default function UpdateActivity() {
               </p>
             </div>
 
+            {/* POD Image — only shown for Delivered */}
             {formData.status === "Delivered" && (
               <div className="border-t border-gray-200 pt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   📸 Proof of Delivery (POD) - Optional
                 </label>
-
                 {!previewImage ? (
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
                     <input
@@ -488,19 +478,12 @@ export default function UpdateActivity() {
                       className="hidden"
                       id="pod-upload"
                     />
-                    <label
-                      htmlFor="pod-upload"
-                      className="cursor-pointer flex flex-col items-center gap-2"
-                    >
+                    <label htmlFor="pod-upload" className="cursor-pointer flex flex-col items-center gap-2">
                       <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-3xl">📷</span>
                       </div>
-                      <p className="text-sm font-medium text-gray-700">
-                        Click to upload POD image
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        JPG, PNG, WebP (Max 5MB)
-                      </p>
+                      <p className="text-sm font-medium text-gray-700">Click to upload POD image</p>
+                      <p className="text-xs text-gray-500">JPG, PNG, WebP (Max 5MB)</p>
                     </label>
                   </div>
                 ) : (
@@ -522,6 +505,7 @@ export default function UpdateActivity() {
               </div>
             )}
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}

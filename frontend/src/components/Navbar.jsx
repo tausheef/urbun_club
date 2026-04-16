@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, LogOut, User, Bell, Search } from 'lucide-react';
+import { Menu, X, LogOut, User, Search } from 'lucide-react';
 import { useSearchStore } from '../stores/searchStore';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
@@ -154,18 +154,10 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Right Side - Notifications & Profile */}
+          {/* Right Side - Profile */}
           <div className="flex items-center gap-4">
             
-            {/* Notifications */}
-            <button className="relative text-gray-600 hover:text-blue-600 transition">
-              <Bell size={20} />
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                3
-              </span>
-            </button>
-
-            {/* ✅ UPDATED: User Menu - Desktop with Google Avatar Support */}
+          {/* ✅ UPDATED: User Menu - Desktop with Google Avatar Support */}
             {user && (
               <div className="hidden md:flex items-center gap-3 pl-4 border-l border-gray-200">
                 <div className="text-right">

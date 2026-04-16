@@ -169,9 +169,98 @@ export const createBookedActivity = async (docketId, originCity, createdAt) => {
     return { success: false, error: error.message };
   }
 };
+
 // ========================================================================
-// ✅ NEW: Status-Based Docket Filtering Functions
+// ✅ OPTIMIZED: Status-Based Docket Filtering Functions
+// Fixed: bulk BookingInfo fetch, no double Docket query, aggregation for status
+// Response shape is IDENTICAL to before — no frontend changes needed
 // ========================================================================
+
+/**
+ * SHARED HELPER — used by all 4 status functions
+ * Accepts a list of docketIds already filtered by status,
+ * bulk-fetches dockets + bookingInfos + their activities in 3 queries total.
+ */
+const buildStatusResponse = async (matchedDocketIds, allActivitiesByDocket) => {
+  if (matchedDocketIds.length === 0) return [];
+
+  // Bulk-fetch dockets for matched IDs — ONE query
+  const dockets = await Docket.find({
+    _id: { $in: matchedDocketIds },
+    docketStatus: { $ne: "Cancelled" },
+  })
+    .populate("consignor")
+    .populate("consignee")
+    .lean();
+
+  if (dockets.length === 0) return [];
+
+  const docketIds = dockets.map((d) => d._id);
+
+  // Bulk-fetch BookingInfos — ONE query (replaces N findOne calls)
+  const BookingInfo = (await import("../models/BookingInfo.js")).default;
+  const bookingInfos = await BookingInfo.find({ docketId: { $in: docketIds } }).lean();
+  const bookingInfoMap = {};
+  bookingInfos.forEach((b) => {
+    bookingInfoMap[b.docketId.toString()] = b;
+  });
+
+  // Assemble — pure map, zero extra DB calls
+  return dockets.map((docket) => {
+    const id = docket._id.toString();
+    const docketActivities = allActivitiesByDocket[id] || [];
+
+    return {
+      docket: {
+        _id:                  docket._id,
+        docketNo:             docket.docketNo,
+        bookingDate:          docket.bookingDate,
+        expectedDeliveryDate: docket.expectedDelivery,
+        destinationCity:      docket.destinationCity,
+        consignor:            docket.consignor,
+        consignee:            docket.consignee,
+        rto:                  docket.rto,
+        docketStatus:         docket.docketStatus,
+      },
+      bookingInfo: bookingInfoMap[id] || {
+        originCity: docket.destinationCity,
+      },
+      activities: docketActivities,
+    };
+  });
+};
+
+/**
+ * SHARED HELPER — aggregates latest status per docket in ONE query
+ * Returns: { docketIdStr → latestStatus }
+ * Also returns allActivitiesByDocket map for response assembly
+ */
+const getActivityMaps = async () => {
+  // ONE query — fetch all activities sorted newest first
+  const activities = await Activity.find()
+    .sort({ date: -1, time: -1 })
+    .lean();
+
+  // Build two maps in a single loop
+  const latestStatusMap = {};      // docketId → latest status string
+  const allActivitiesByDocket = {}; // docketId → all activities array
+
+  activities.forEach((activity) => {
+    const id = activity.docketId.toString();
+
+    // First seen = latest (already sorted desc)
+    if (!latestStatusMap[id]) {
+      latestStatusMap[id] = activity.status;
+    }
+
+    if (!allActivitiesByDocket[id]) {
+      allActivitiesByDocket[id] = [];
+    }
+    allActivitiesByDocket[id].push(activity);
+  });
+
+  return { latestStatusMap, allActivitiesByDocket };
+};
 
 /**
  * @desc    Get delivered dockets via activities
@@ -180,90 +269,22 @@ export const createBookedActivity = async (docketId, originCity, createdAt) => {
  */
 export const getDeliveredDockets = async (req, res) => {
   try {
-    // Get all activities sorted by date
-    const activities = await Activity.find()
-      .sort({ date: -1, time: -1 })
-      .lean();
+    const { latestStatusMap, allActivitiesByDocket } = await getActivityMaps();
 
-    console.log(`📊 Total activities: ${activities.length}`);
-
-    // Group by docketId and get latest activity
-    const latestActivityByDocket = {};
-    activities.forEach(activity => {
-      const docketId = activity.docketId.toString();
-      if (!latestActivityByDocket[docketId]) {
-        latestActivityByDocket[docketId] = activity;
-      }
-    });
-
-    console.log(`📊 Unique dockets with activities: ${Object.keys(latestActivityByDocket).length}`);
-
-    // Filter for delivered status
-    const deliveredDocketIds = [];
-    Object.entries(latestActivityByDocket).forEach(([docketId, activity]) => {
-      const status = activity.status.toLowerCase().trim();
-      
-      // Check if delivered (case-insensitive)
-      if (status.includes("delivered") && !status.includes("undelivered")) {
-        deliveredDocketIds.push(docketId);
-      }
-    });
-
-    console.log(`✅ Delivered dockets found: ${deliveredDocketIds.length}`);
-
-    // Get full docket details
-    const dockets = await Docket.find({
-      _id: { $in: deliveredDocketIds },
-      docketStatus: { $ne: 'Cancelled' }
-    })
-      .populate("consignor")
-      .populate("consignee")
-      .lean();
-
-    // Import BookingInfo model
-    const BookingInfo = (await import("../models/BookingInfo.js")).default;
-
-    // Format response
-    const result = await Promise.all(
-      dockets.map(async (docket) => {
-        // Get all activities for this docket
-        const docketActivities = activities.filter(
-          a => a.docketId.toString() === docket._id.toString()
-        );
-
-        // Get booking info
-        const bookingInfo = await BookingInfo.findOne({ docketId: docket._id }).lean();
-
-        return {
-          docket: {
-            _id: docket._id,
-            docketNo: docket.docketNo,
-            bookingDate: docket.bookingDate,
-            expectedDeliveryDate: docket.expectedDelivery,
-            destinationCity: docket.destinationCity,
-            consignor: docket.consignor,
-            consignee: docket.consignee,
-            rto: docket.rto,
-          },
-          bookingInfo: bookingInfo || {
-            originCity: docket.location || docket.destinationCity,
-          },
-          activities: docketActivities,
-        };
+    // Filter docket IDs whose latest status is "delivered" (not "undelivered")
+    const matchedIds = Object.entries(latestStatusMap)
+      .filter(([, status]) => {
+        const s = status.toLowerCase().trim();
+        return s.includes("delivered") && !s.includes("undelivered");
       })
-    );
+      .map(([id]) => id);
 
-    res.status(200).json({
-      success: true,
-      count: result.length,
-      data: result,
-    });
+    const result = await buildStatusResponse(matchedIds, allActivitiesByDocket);
+
+    res.status(200).json({ success: true, count: result.length, data: result });
   } catch (error) {
-    console.error("❌ Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ Error fetching delivered dockets:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -274,74 +295,18 @@ export const getDeliveredDockets = async (req, res) => {
  */
 export const getUndeliveredDockets = async (req, res) => {
   try {
-    const activities = await Activity.find()
-      .sort({ date: -1, time: -1 })
-      .lean();
+    const { latestStatusMap, allActivitiesByDocket } = await getActivityMaps();
 
-    const latestActivityByDocket = {};
-    activities.forEach(activity => {
-      const docketId = activity.docketId.toString();
-      if (!latestActivityByDocket[docketId]) {
-        latestActivityByDocket[docketId] = activity;
-      }
-    });
+    const matchedIds = Object.entries(latestStatusMap)
+      .filter(([, status]) => status.toLowerCase().trim().includes("undelivered"))
+      .map(([id]) => id);
 
-    const undeliveredDocketIds = [];
-    Object.entries(latestActivityByDocket).forEach(([docketId, activity]) => {
-      const status = activity.status.toLowerCase().trim();
-      if (status.includes("undelivered")) {
-        undeliveredDocketIds.push(docketId);
-      }
-    });
+    const result = await buildStatusResponse(matchedIds, allActivitiesByDocket);
 
-    const dockets = await Docket.find({
-      _id: { $in: undeliveredDocketIds },
-      docketStatus: { $ne: 'Cancelled' }
-    })
-      .populate("consignor")
-      .populate("consignee")
-      .lean();
-
-    const BookingInfo = (await import("../models/BookingInfo.js")).default;
-
-    const result = await Promise.all(
-      dockets.map(async (docket) => {
-        const docketActivities = activities.filter(
-          a => a.docketId.toString() === docket._id.toString()
-        );
-
-        const bookingInfo = await BookingInfo.findOne({ docketId: docket._id }).lean();
-
-        return {
-          docket: {
-            _id: docket._id,
-            docketNo: docket.docketNo,
-            bookingDate: docket.bookingDate,
-            expectedDeliveryDate: docket.expectedDelivery,
-            destinationCity: docket.destinationCity,
-            consignor: docket.consignor,
-            consignee: docket.consignee,
-            rto: docket.rto,
-          },
-          bookingInfo: bookingInfo || {
-            originCity: docket.location || docket.destinationCity,
-          },
-          activities: docketActivities,
-        };
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      count: result.length,
-      data: result,
-    });
+    res.status(200).json({ success: true, count: result.length, data: result });
   } catch (error) {
-    console.error("❌ Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ Error fetching undelivered dockets:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -352,77 +317,24 @@ export const getUndeliveredDockets = async (req, res) => {
  */
 export const getPendingDockets = async (req, res) => {
   try {
-    const activities = await Activity.find()
-      .sort({ date: -1, time: -1 })
-      .lean();
+    const { latestStatusMap, allActivitiesByDocket } = await getActivityMaps();
 
-    const latestActivityByDocket = {};
-    activities.forEach(activity => {
-      const docketId = activity.docketId.toString();
-      if (!latestActivityByDocket[docketId]) {
-        latestActivityByDocket[docketId] = activity;
-      }
-    });
-
-    const pendingDocketIds = [];
-    Object.entries(latestActivityByDocket).forEach(([docketId, activity]) => {
-      const status = activity.status.toLowerCase().trim();
-      const isDelivered = status.includes("delivered") && !status.includes("undelivered");
-      const isUndelivered = status.includes("undelivered");
-      
-      if (!isDelivered && !isUndelivered) {
-        pendingDocketIds.push(docketId);
-      }
-    });
-
-    const dockets = await Docket.find({
-      _id: { $in: pendingDocketIds },
-      docketStatus: { $ne: 'Cancelled' }
-    })
-      .populate("consignor")
-      .populate("consignee")
-      .lean();
-
-    const BookingInfo = (await import("../models/BookingInfo.js")).default;
-
-    const result = await Promise.all(
-      dockets.map(async (docket) => {
-        const docketActivities = activities.filter(
-          a => a.docketId.toString() === docket._id.toString()
-        );
-
-        const bookingInfo = await BookingInfo.findOne({ docketId: docket._id }).lean();
-
-        return {
-          docket: {
-            _id: docket._id,
-            docketNo: docket.docketNo,
-            bookingDate: docket.bookingDate,
-            expectedDeliveryDate: docket.expectedDelivery,
-            destinationCity: docket.destinationCity,
-            consignor: docket.consignor,
-            consignee: docket.consignee,
-            rto: docket.rto,
-          },
-          bookingInfo: bookingInfo || {
-            originCity: docket.location || docket.destinationCity,
-          },
-          activities: docketActivities,
-        };
+    // Pending = NOT delivered AND NOT undelivered
+    const matchedIds = Object.entries(latestStatusMap)
+      .filter(([, status]) => {
+        const s = status.toLowerCase().trim();
+        const isDelivered   = s.includes("delivered") && !s.includes("undelivered");
+        const isUndelivered = s.includes("undelivered");
+        return !isDelivered && !isUndelivered;
       })
-    );
+      .map(([id]) => id);
 
-    res.status(200).json({
-      success: true,
-      count: result.length,
-      data: result,
-    });
+    const result = await buildStatusResponse(matchedIds, allActivitiesByDocket);
+
+    res.status(200).json({ success: true, count: result.length, data: result });
   } catch (error) {
-    console.error("❌ Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ Error fetching pending dockets:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -433,75 +345,38 @@ export const getPendingDockets = async (req, res) => {
  */
 export const getRTODockets = async (req, res) => {
   try {
-    const activities = await Activity.find()
-      .sort({ date: -1, time: -1 })
-      .lean();
+    const { latestStatusMap, allActivitiesByDocket } = await getActivityMaps();
 
-    // Get all dockets with RTO flag (only Active dockets)
-    const rtoDockets = await Docket.find({ rto: true, docketStatus: 'Active' })
-      .populate("consignor")
-      .populate("consignee")
-      .lean();
+    // Collect docket IDs with ANY rto activity (not just latest)
+    const rtoIds = new Set();
 
-    const rtoDocketIds = new Set(rtoDockets.map(d => d._id.toString()));
-
-    // Also check activities for RTO status
-    activities.forEach(activity => {
-      const status = activity.status.toLowerCase().trim();
-      if (status.includes("(rto)") || status.includes("rto") || 
-          status.includes("return to origin") || status.includes("return to sender")) {
-        rtoDocketIds.add(activity.docketId.toString());
-      }
-    });
-
-    const dockets = await Docket.find({
-      _id: { $in: Array.from(rtoDocketIds) },
-      docketStatus: 'Active'
-    })
-      .populate("consignor")
-      .populate("consignee")
-      .lean();
-
-    const BookingInfo = (await import("../models/BookingInfo.js")).default;
-
-    const result = await Promise.all(
-      dockets.map(async (docket) => {
-        const docketActivities = activities.filter(
-          a => a.docketId.toString() === docket._id.toString()
+    // Check all activities for RTO mentions
+    Object.entries(allActivitiesByDocket).forEach(([id, acts]) => {
+      const hasRTO = acts.some((a) => {
+        const s = a.status.toLowerCase().trim();
+        return (
+          s.includes("(rto)") ||
+          s.includes("rto") ||
+          s.includes("return to origin") ||
+          s.includes("return to sender")
         );
-
-        const bookingInfo = await BookingInfo.findOne({ docketId: docket._id }).lean();
-
-        return {
-          docket: {
-            _id: docket._id,
-            docketNo: docket.docketNo,
-            bookingDate: docket.bookingDate,
-            expectedDeliveryDate: docket.expectedDelivery,
-            destinationCity: docket.destinationCity,
-            consignor: docket.consignor,
-            consignee: docket.consignee,
-            rto: docket.rto,
-          },
-          bookingInfo: bookingInfo || {
-            originCity: docket.location || docket.destinationCity,
-          },
-          activities: docketActivities,
-        };
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      count: result.length,
-      data: result,
+      });
+      if (hasRTO) rtoIds.add(id);
     });
+
+    // Also include dockets with rto flag set — fetch those IDs
+    const rtoDocketsByFlag = await Docket.find(
+      { rto: true, docketStatus: { $ne: "Cancelled" } },
+      "_id"
+    ).lean();
+    rtoDocketsByFlag.forEach((d) => rtoIds.add(d._id.toString()));
+
+    const result = await buildStatusResponse(Array.from(rtoIds), allActivitiesByDocket);
+
+    res.status(200).json({ success: true, count: result.length, data: result });
   } catch (error) {
-    console.error("❌ Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ Error fetching RTO dockets:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
