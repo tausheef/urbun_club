@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X, LogOut, User, Search } from 'lucide-react';
 import { useSearchStore } from '../stores/searchStore';
+import { useSidebarStore } from '../stores/sidebarStore';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 
@@ -9,6 +10,7 @@ export default function Navbar() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   
   const { searchType, searchQuery, setSearchType, setSearchQuery, executeSearch } = useSearchStore();
+  const { openSidebar } = useSidebarStore();
   const { user, logout, isAdmin } = useAuth();
 
   const toggleMenu = () => {
@@ -53,20 +55,29 @@ export default function Navbar() {
     <nav className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-full mx-auto px-6">
         <div className="flex justify-between items-center h-16">
-          
-          {/* Logo/Brand */}
-          <Link to="/">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                <img
-                  src="/erp/logo.png"
-                  alt="Urban Club Logo"
-                  className="w-20 h-10 rounded object-contain bg-white p-1"
-                />
+
+          {/* Logo/Brand + mobile sidebar trigger */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={openSidebar}
+              className="md:hidden p-2 text-gray-600 hover:text-blue-600 rounded-lg hover:bg-gray-100 transition"
+              aria-label="Open sidebar"
+            >
+              <Menu size={24} />
+            </button>
+            <Link to="/">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                  <img
+                    src="/erp/logo.png"
+                    alt="Urban Club Logo"
+                    className="w-20 h-10 rounded object-contain bg-white p-1"
+                  />
+                </div>
+                <span className="font-bold text-gray-800 text-lg hidden sm:inline">URBAN CLUB</span>
               </div>
-              <span className="font-bold text-gray-800 text-lg hidden sm:inline">URBAN CLUB</span> 
-            </div>
-          </Link>
+            </Link>
+          </div>
 
           {/* Search Bar with Toggle - Desktop */}
           <div className="hidden md:flex items-center gap-2 flex-1 mx-8">
@@ -195,7 +206,7 @@ export default function Navbar() {
               onClick={toggleMenu}
               className="md:hidden text-gray-600 hover:text-blue-600"
             >
-              {isOpen ? <X size={24} /> : <Menu size={24} />}
+              {isOpen ? <X size={24} /> : <Search size={24} />}
             </button>
           </div>
         </div>

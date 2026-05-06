@@ -125,7 +125,7 @@ export default function HtmlToPdf() {
       `${docket?.consignee?.city ?? ""}, ${docket?.consignee?.state ?? ""} - ${docket?.consignee?.pin ?? ""}`,
       87, 449, 9, 280);
     drawText(pdf, invoice?.packet,                                             95, 510, 18);
-    drawText(pdf, `${invoice?.weight ?? ""}kg`,                              445, 521, 15);
+    drawText(pdf, invoice?.weight ? `${invoice.weight}kg` : "",              445, 521, 15);
     drawText(pdf, invoice?.itemDescription,                                  290, 658, 10);
 
     let dimYpx = 505;
@@ -227,7 +227,7 @@ export default function HtmlToPdf() {
         `${docket?.consignee?.city ?? ""}, ${docket?.consignee?.state ?? ""} - ${docket?.consignee?.pin ?? ""}`,
         87, 449, 12, 280);
       drawCanvasText(invoice?.packet,                                          95, 510, 24);
-      drawCanvasText(`${invoice?.weight ?? ""}kg`,                           445, 521, 20);
+      drawCanvasText(invoice?.weight ? `${invoice.weight}kg` : "",           445, 521, 20);
       drawCanvasText(invoice?.itemDescription,                                290, 658, 13);
 
       let dimY = 505;
@@ -308,49 +308,65 @@ export default function HtmlToPdf() {
     ...extra,
   });
 
+  const renderReceipt = () => (
+    <>
+      <img src={LORRY_RECEIPT_TEMPLATE} alt="template" className="absolute inset-0 w-full h-full" style={{ objectFit: "fill" }} />
+      <div className="absolute" style={{ top: 165, left: 903 }}><span style={ts({ fontSize: 30, fontWeight: "bold" })}>{docket?.docketNo}</span></div>
+      <div className="absolute" style={{ top: 204, left: 908 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{formatDate(docket?.bookingDate)}</span></div>
+      <div className="absolute" style={{ top: 234, left: 510 }}><span style={ts({ fontSize: 10, fontWeight: 600 })}>{formatDate(docket?.bookingDate)}</span></div>
+      <div className="absolute" style={{ top: 234, left: 420 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>O/R</span></div>
+      <div className="absolute" style={{ top: 332, left: 937 }}><span style={ts({ fontSize: 15, fontWeight: 600 })}>{invoice?.invoiceNo}</span></div>
+      <div className="absolute" style={{ top: 491, left: 933 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{invoice?.grossInvoiceValue}/-</span></div>
+      <div className="absolute" style={{ top: 209, left: 630 }}><span style={ts({ fontSize: 13, fontWeight: 600 })}>{bookingInfo?.deliveryMode}</span></div>
+      <div className="absolute" style={{ top: 319, left: 599 }}><span style={ts({ fontSize: 20, fontWeight: 600 })}>{docket?.consignee?.phone}</span></div>
+      <div className="absolute" style={{ top: 405, left: 619, maxWidth: 100 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{bookingInfo?.originCity}</span></div>
+      <div className="absolute" style={{ top: 444, left: 619, maxWidth: 100 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{docket?.destinationCity}</span></div>
+      <div className="absolute" style={{ top: 425, left: 936 }}><span style={ts({ fontSize: 13, fontWeight: 600 })}>{formatDate(docket?.expectedDelivery)}</span></div>
+      <div className="absolute" style={{ top: 290, left: 257, maxWidth: 360 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignor?.consignorName}</div></div>
+      <div className="absolute" style={{ top: 322, left: 88,  maxWidth: 500 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignor?.address}</div></div>
+      <div className="absolute" style={{ top: 355, left: 88,  maxWidth: 360 }}><div style={ts({ fontSize: 11, fontWeight: 600 })}>{docket?.consignor?.city} , {docket?.consignor?.state} - {docket?.consignor?.pin}</div></div>
+      <div className="absolute" style={{ top: 385, left: 247, maxWidth: 280 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignee?.consigneeName}</div></div>
+      <div className="absolute" style={{ top: 417, left: 87,  maxWidth: 280 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignee?.address}</div></div>
+      <div className="absolute" style={{ top: 449, left: 87,  maxWidth: 280 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignee?.city}, {docket?.consignee?.state} - {docket?.consignee?.pin}</div></div>
+      <div className="absolute" style={{ top: 510, left: 95  }}><div style={ts({ fontSize: 24, fontWeight: 600 })}>{invoice?.packet}</div></div>
+      <div className="absolute" style={{ top: 521, left: 445 }}><div style={ts({ fontSize: 20, fontWeight: 600 })}>{invoice?.weight ? `${invoice.weight}kg` : ""}</div></div>
+      <div className="absolute" style={{ top: 658, left: 290 }}><div style={ts({ fontSize: 13, fontWeight: 600 })}>{invoice?.itemDescription}</div></div>
+      {dimensionsArray.length > 0 && (
+        <div className="absolute" style={{ top: 505, left: 149 }}>
+          <div style={ts({ fontSize: 13, fontWeight: "bold" })}>
+            {dimensionsArray.map((dim, i) => (
+              <div key={i} style={{ marginBottom: 2 }}>{dim.length} x {dim.width} x {dim.height} - {dim.noOfPackets} Pkg</div>
+            ))}
+          </div>
+        </div>
+      )}
+      {showSignature && (
+        <div className="absolute" style={{ top: 590, left: 893 }}>
+          <img src="/erp/sign.png" alt="Signature" style={{ width: 170, height: 111, objectFit: "contain" }} />
+        </div>
+      )}
+    </>
+  );
+
   return (
     <>
-      {/* Visual preview */}
+      {/* Screen preview — hidden during print */}
       <div
-        className="relative bg-white overflow-hidden"
+        className="screen-only relative bg-white overflow-hidden"
         style={{ width: "1123px", height: "794px", margin: "16px auto", boxShadow: "0 4px 24px rgba(0,0,0,0.15)" }}
       >
-        <img src={LORRY_RECEIPT_TEMPLATE} alt="template" className="absolute inset-0 w-full h-full" style={{ objectFit: "fill" }} />
+        {renderReceipt()}
+      </div>
 
-        <div className="absolute" style={{ top: 165, left: 903 }}><span style={ts({ fontSize: 30, fontWeight: "bold" })}>{docket?.docketNo}</span></div>
-        <div className="absolute" style={{ top: 204, left: 908 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{formatDate(docket?.bookingDate)}</span></div>
-        <div className="absolute" style={{ top: 234, left: 510 }}><span style={ts({ fontSize: 10, fontWeight: 600 })}>{formatDate(docket?.bookingDate)}</span></div>
-        <div className="absolute" style={{ top: 234, left: 420 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>O/R</span></div>
-        <div className="absolute" style={{ top: 332, left: 937 }}><span style={ts({ fontSize: 15, fontWeight: 600 })}>{invoice?.invoiceNo}</span></div>
-        <div className="absolute" style={{ top: 491, left: 933 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{invoice?.grossInvoiceValue}/-</span></div>
-        <div className="absolute" style={{ top: 209, left: 630 }}><span style={ts({ fontSize: 13, fontWeight: 600 })}>{bookingInfo?.deliveryMode}</span></div>
-        <div className="absolute" style={{ top: 319, left: 599 }}><span style={ts({ fontSize: 20, fontWeight: 600 })}>{docket?.consignee?.phone}</span></div>
-        <div className="absolute" style={{ top: 405, left: 619, maxWidth: 100 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{bookingInfo?.originCity}</span></div>
-        <div className="absolute" style={{ top: 444, left: 619, maxWidth: 100 }}><span style={ts({ fontSize: 17, fontWeight: 600 })}>{docket?.destinationCity}</span></div>
-        <div className="absolute" style={{ top: 425, left: 936 }}><span style={ts({ fontSize: 13, fontWeight: 600 })}>{formatDate(docket?.expectedDelivery)}</span></div>
-        <div className="absolute" style={{ top: 290, left: 257, maxWidth: 360 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignor?.consignorName}</div></div>
-        <div className="absolute" style={{ top: 322, left: 88,  maxWidth: 500 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignor?.address}</div></div>
-        <div className="absolute" style={{ top: 355, left: 88,  maxWidth: 360 }}><div style={ts({ fontSize: 11, fontWeight: 600 })}>{docket?.consignor?.city} , {docket?.consignor?.state} - {docket?.consignor?.pin}</div></div>
-        <div className="absolute" style={{ top: 385, left: 247, maxWidth: 280 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignee?.consigneeName}</div></div>
-        <div className="absolute" style={{ top: 417, left: 87,  maxWidth: 280 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignee?.address}</div></div>
-        <div className="absolute" style={{ top: 449, left: 87,  maxWidth: 280 }}><div style={ts({ fontSize: 12, fontWeight: 600 })}>{docket?.consignee?.city}, {docket?.consignee?.state} - {docket?.consignee?.pin}</div></div>
-        <div className="absolute" style={{ top: 510, left: 95  }}><div style={ts({ fontSize: 24, fontWeight: 600 })}>{invoice?.packet}</div></div>
-        <div className="absolute" style={{ top: 521, left: 445 }}><div style={ts({ fontSize: 20, fontWeight: 600 })}>{invoice?.weight}kg</div></div>
-        <div className="absolute" style={{ top: 658, left: 290 }}><div style={ts({ fontSize: 13, fontWeight: 600 })}>{invoice?.itemDescription}</div></div>
-        {dimensionsArray.length > 0 && (
-          <div className="absolute" style={{ top: 505, left: 149 }}>
-            <div style={ts({ fontSize: 13, fontWeight: "bold" })}>
-              {dimensionsArray.map((dim, i) => (
-                <div key={i} style={{ marginBottom: 2 }}>{dim.length} x {dim.width} x {dim.height} - {dim.noOfPackets} Pkg</div>
-              ))}
+      {/* Print-only: 2 copies stacked on A4 portrait (794 x 1123 px) */}
+      <div className="print-only" style={{ width: "794px", height: "1123px", margin: 0, padding: 0, overflow: "hidden" }}>
+        {[0, 1].map((i) => (
+          <div key={i} style={{ width: "794px", height: "561px", position: "relative", overflow: "hidden" }}>
+            <div style={{ width: "1123px", height: "794px", transform: "scale(0.707)", transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
+              {renderReceipt()}
             </div>
           </div>
-        )}
-        {showSignature && (
-          <div className="absolute" style={{ top: 590, left: 893 }}>
-            <img src="/erp/sign.png" alt="Signature" style={{ width: 170, height: 111, objectFit: "contain" }} />
-          </div>
-        )}
+        ))}
       </div>
 
       {/* MIS upload status banner */}
@@ -421,7 +437,16 @@ export default function HtmlToPdf() {
 
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `@media print { @page { size: A4 landscape; margin: 0; } body { margin: 0; } .print\\:hidden { display: none !important; } }` }} />
+      <style dangerouslySetInnerHTML={{ __html: `
+        .print-only { display: none; }
+        @media print {
+          @page { size: A4 portrait; margin: 0; }
+          body { margin: 0; }
+          .print\\:hidden { display: none !important; }
+          .screen-only { display: none !important; }
+          .print-only { display: block !important; }
+        }
+      ` }} />
     </>
   );
 }
