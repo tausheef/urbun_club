@@ -75,10 +75,10 @@ export const docketAPI = {
     return response.data;
   },
 
-  // MIS Report search by consignor/consignee name
-  misSearch: async (clientType, clientName) => {
+  // MIS Report search by consignor/consignee name, or all dockets with optional date range
+  misSearch: async (clientType, clientName, fromDate, toDate) => {
     const response = await axiosInstance.get("/dockets/mis-search", {
-      params: { clientType, clientName },
+      params: { clientType, clientName, fromDate, toDate },
     });
     return response.data;
   },

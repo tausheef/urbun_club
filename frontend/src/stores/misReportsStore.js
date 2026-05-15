@@ -6,8 +6,10 @@ const n = (str) => (str || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 
 export const useMisReportsStore = create((set, get) => ({
-  clientType: 'Consignor', // 'Consignor' or 'Consignee'
+  clientType: 'Consignor', // 'Consignor' | 'Consignee' | 'TPName' | 'All'
   clientName: '',
+  fromDate: '',
+  toDate: '',
   searchResults: [],
   loading: false,
   error: null,
@@ -22,9 +24,13 @@ export const useMisReportsStore = create((set, get) => ({
     set({ clientName: name });
   },
 
+  setFromDate: (date) => set({ fromDate: date }),
+  setToDate: (date) => set({ toDate: date }),
+
   // Search dockets by client
-  searchByClient: async (clientType, clientName) => {
-    if (!clientName.trim()) {
+  searchByClient: async (clientType, clientName, fromDate, toDate) => {
+    // All Dockets mode doesn't need a clientName
+    if (clientType !== 'All' && clientType !== 'TPName' && !clientName.trim()) {
       set({ searchResults: [], error: null });
       return;
     }
@@ -33,6 +39,10 @@ export const useMisReportsStore = create((set, get) => ({
 
     // ✅ TP NAME MODE: search co-loaders by transportName
     if (clientType === 'TPName') {
+      if (!clientName.trim()) {
+        set({ searchResults: [], loading: false, error: null });
+        return;
+      }
       try {
         const response = await coLoaderAPI.getAll();
         const allCoLoaders = response?.data || [];
@@ -62,10 +72,9 @@ export const useMisReportsStore = create((set, get) => ({
       return;
     }
 
-    // ─── Consignor / Consignee mode ───────────────────────────────────────────
+    // ─── Consignor / Consignee / All mode ────────────────────────────────────
     try {
-      // ✅ Dedicated backend endpoint — only fetches matched dockets, not all 184
-      const data = await docketAPI.misSearch(clientType, clientName);
+      const data = await docketAPI.misSearch(clientType, clientName, fromDate, toDate);
 
       if (!data.success || !Array.isArray(data.data)) {
         console.error('Unexpected API response structure:', data);
@@ -122,6 +131,6 @@ export const useMisReportsStore = create((set, get) => ({
 
   // Clear search
   clearSearch: () => {
-    set({ searchResults: [], clientName: '', error: null });
+    set({ searchResults: [], clientName: '', fromDate: '', toDate: '', error: null });
   },
 }));

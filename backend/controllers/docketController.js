@@ -1322,29 +1322,42 @@ export const misSearch = async (req, res) => {
     const Activity = (await import("../models/Activity.js")).default;
     const CoLoader = (await import("../models/Coloader.js")).default;
 
-    const { clientType, clientName } = req.query;
+    const { clientType, clientName, fromDate, toDate } = req.query;
 
-    if (!clientName?.trim()) {
+    // clientName required for Consignor/Consignee, not for All
+    if (clientType !== "All" && !clientName?.trim()) {
       return res.status(400).json({ success: false, message: "clientName is required" });
     }
 
-    // Normalize: trim + collapse multiple spaces (matches even if DB has extra spaces)
-    const normalizedName = clientName.trim().replace(/\s+/g, "\\s+");
-    const searchRegex = new RegExp(normalizedName, "i");
-
-    // 1. Find matching consignor/consignee IDs first
+    // 1. Build docket query
     let docketQuery = { docketStatus: { $ne: "Cancelled" } };
 
+    // Optional date range filter on bookingDate (applies to all modes)
+    if (fromDate || toDate) {
+      docketQuery.bookingDate = {};
+      if (fromDate) docketQuery.bookingDate.$gte = new Date(fromDate);
+      if (toDate) {
+        // Include the full toDate day
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        docketQuery.bookingDate.$lte = end;
+      }
+    }
+
     if (clientType === "Consignor") {
+      const normalizedName = clientName.trim().replace(/\s+/g, "\\s+");
+      const searchRegex = new RegExp(normalizedName, "i");
       const matches = await Consignor.find({ consignorName: searchRegex }, "_id").lean();
       if (matches.length === 0) return res.status(200).json({ success: true, count: 0, data: [] });
       docketQuery.consignor = { $in: matches.map((c) => c._id) };
     } else if (clientType === "Consignee") {
+      const normalizedName = clientName.trim().replace(/\s+/g, "\\s+");
+      const searchRegex = new RegExp(normalizedName, "i");
       const matches = await Consignee.find({ consigneeName: searchRegex }, "_id").lean();
       if (matches.length === 0) return res.status(200).json({ success: true, count: 0, data: [] });
       docketQuery.consignee = { $in: matches.map((c) => c._id) };
-    } else {
-      return res.status(400).json({ success: false, message: "clientType must be Consignor or Consignee" });
+    } else if (clientType !== "All") {
+      return res.status(400).json({ success: false, message: "clientType must be Consignor, Consignee, or All" });
     }
 
     // 2. Fetch only matched dockets (NOT all dockets)

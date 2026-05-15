@@ -50,18 +50,24 @@ export default function MisReports() {
   const {
     clientType,
     clientName,
+    fromDate,
+    toDate,
     searchResults,
     loading,
     error,
     setClientType,
     setClientName,
+    setFromDate,
+    setToDate,
     searchByClient,
     clearSearch,
   } = useMisReportsStore();
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [searched, setSearched] = useState(false);
   const rowsPerPage = 10;
   const isTPNameMode = clientType === 'TPName';
+  const isAllMode = clientType === 'All';
 
   // ✅ Check if any result has co-loader to show/hide columns
   const hasAnyCoLoader = useMemo(() => {
@@ -69,13 +75,15 @@ export default function MisReports() {
   }, [searchResults]);
 
   const handleSearch = async () => {
-    await searchByClient(clientType, clientName);
+    setSearched(true);
+    await searchByClient(clientType, clientName, fromDate, toDate);
     setCurrentPage(1);
   };
 
   const handleClearSearch = () => {
     clearSearch();
     setCurrentPage(1);
+    setSearched(false);
   };
 
   // ✅ Export to Excel
@@ -85,7 +93,7 @@ export default function MisReports() {
     const workbook = XLSX.utils.book_new();
     let worksheet;
 
-    if (isTPNameMode) {
+    if (isTPNameMode && !isAllMode) {
       const excelData = searchResults.map(r => ({
         'SLNO':        r.slno,
         'DOCKET NO':   r.docketNo,
@@ -154,7 +162,7 @@ export default function MisReports() {
   const endIdx = startIdx + rowsPerPage;
   const currentResults = searchResults.slice(startIdx, endIdx);
 
-  const hasSearched = searchResults.length > 0 || (clientName && !loading);
+  const hasSearched = searchResults.length > 0 || (searched && !loading);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -184,7 +192,7 @@ export default function MisReports() {
                       name="clientType"
                       value="Consignor"
                       checked={clientType === 'Consignor'}
-                      onChange={(e) => setClientType(e.target.value)}
+                      onChange={(e) => { setClientType(e.target.value); setSearched(false); }}
                       className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
                     />
                     <label htmlFor="consignor" className="ml-2 text-sm text-gray-700 cursor-pointer font-medium">
@@ -198,7 +206,7 @@ export default function MisReports() {
                       name="clientType"
                       value="Consignee"
                       checked={clientType === 'Consignee'}
-                      onChange={(e) => setClientType(e.target.value)}
+                      onChange={(e) => { setClientType(e.target.value); setSearched(false); }}
                       className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
                     />
                     <label htmlFor="consignee" className="ml-2 text-sm text-gray-700 cursor-pointer font-medium">
@@ -212,36 +220,52 @@ export default function MisReports() {
                       name="clientType"
                       value="TPName"
                       checked={clientType === 'TPName'}
-                      onChange={(e) => setClientType(e.target.value)}
+                      onChange={(e) => { setClientType(e.target.value); setSearched(false); }}
                       className="w-4 h-4 text-orange-500 focus:ring-2 focus:ring-orange-400"
                     />
                     <label htmlFor="tpname" className="ml-2 text-sm text-orange-700 cursor-pointer font-semibold">
                       TP NAME
                     </label>
                   </div>
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="allDockets"
+                      name="clientType"
+                      value="All"
+                      checked={clientType === 'All'}
+                      onChange={(e) => { setClientType(e.target.value); setSearched(false); }}
+                      className="w-4 h-4 text-green-600 focus:ring-2 focus:ring-green-500"
+                    />
+                    <label htmlFor="allDockets" className="ml-2 text-sm text-green-700 cursor-pointer font-semibold">
+                      ALL DOCKETS
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              {/* Client Name */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Client Name
-                </label>
-                <input
-                  type="text"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
-                  placeholder={isTPNameMode ? 'Enter Transport / TP Name to search' : `Enter ${clientType} Name`}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
+              {/* Client Name — hidden in All Dockets mode */}
+              {!isAllMode && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Client Name
+                  </label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                    placeholder={isTPNameMode ? 'Enter Transport / TP Name to search' : `Enter ${clientType} Name`}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              )}
 
               {/* Buttons */}
-              <div className="flex gap-3 items-end">
+              <div className={`flex gap-3 items-end ${isAllMode ? 'md:col-start-4' : ''}`}>
                 <button
                   onClick={handleSearch}
-                  disabled={loading || !clientName.trim()}
+                  disabled={loading || (!isAllMode && !clientName.trim())}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg"
                 >
                   {loading ? '🔍 Searching...' : 'SEARCH'}
@@ -252,6 +276,47 @@ export default function MisReports() {
                 >
                   CLEAR
                 </button>
+              </div>
+
+              {/* Date Range Filter — always visible */}
+              <div className="md:col-span-4 border-t border-gray-100 pt-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                  Filter by Booking Date <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div className="flex flex-wrap gap-4 items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 font-medium">From</span>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 font-medium">To</span>
+                    <input
+                      type="date"
+                      value={toDate}
+                      min={fromDate || undefined}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
+                    />
+                  </div>
+                  {(fromDate || toDate) && (
+                    <button
+                      onClick={() => { setFromDate(''); setToDate(''); }}
+                      className="text-sm text-red-500 hover:text-red-700 font-medium transition-colors"
+                    >
+                      Clear dates
+                    </button>
+                  )}
+                  {fromDate && toDate && (
+                    <span className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded-full">
+                      {new Date(fromDate).toLocaleDateString('en-IN')} – {new Date(toDate).toLocaleDateString('en-IN')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -293,10 +358,24 @@ export default function MisReports() {
               {searchResults.length > 0 && (
                 <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                   <div className="text-gray-700 font-semibold">
-                    📊 Found {searchResults.length} record{searchResults.length !== 1 ? 's' : ''} for{' '}
-                    <span className={isTPNameMode ? 'text-orange-600' : 'text-blue-600'}>{clientName}</span>
+                    📊 Found {searchResults.length} record{searchResults.length !== 1 ? 's' : ''}
+                    {!isAllMode && (
+                      <> for <span className={isTPNameMode ? 'text-orange-600' : 'text-blue-600'}>{clientName}</span></>
+                    )}
                     {isTPNameMode && (
                       <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">🚛 TP Name View</span>
+                    )}
+                    {isAllMode && (
+                      <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">All Dockets</span>
+                    )}
+                    {(fromDate || toDate) && (
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                        {fromDate && toDate
+                          ? `${new Date(fromDate).toLocaleDateString('en-IN')} – ${new Date(toDate).toLocaleDateString('en-IN')}`
+                          : fromDate
+                          ? `From ${new Date(fromDate).toLocaleDateString('en-IN')}`
+                          : `Until ${new Date(toDate).toLocaleDateString('en-IN')}`}
+                      </span>
                     )}
                   </div>
                   <button
@@ -319,7 +398,7 @@ export default function MisReports() {
               ) : (
                 <>
                   <div className="overflow-x-auto">
-                    {isTPNameMode ? (
+                    {isTPNameMode && !isAllMode ? (
                       /* TP NAME TABLE */
                       <table className="w-full text-sm">
                         <thead className="bg-orange-600 text-white sticky top-0">
